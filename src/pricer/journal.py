@@ -61,6 +61,9 @@ def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None
         "strategies": _records(q.strategies),
         "risk": {"cost_eur": q.risk.cost, "sigma_eur": q.risk.sigma, "confidence": q.risk.confidence,
                  "by_month": _records(q.risk.by_month)},
+        "deviation": None if q.deviation is None else {
+            "cost_eur": q.deviation.cost, "sigma_eur": q.deviation.sigma, "method": q.deviation.method,
+            "by_month": _records(q.deviation.by_month)},
         "margin": {"eur": q.margin.eur, "rule": q.margin.rule, **q.margin.detail},
         "warnings": q.warnings, "context": q.context,
         "curve": {"pricing_date": str(mkt.pricing_date), "method": mkt.meta.get("method"),

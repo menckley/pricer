@@ -26,3 +26,12 @@ couverture:
 liquidite:
   seuil_mw: 2         # MW traités sur un contrat sans prime
   eur_mwh_par_mw: 0.15    # €/MWh ajoutés par MW au-delà du seuil
+
+deviation:
+  methode: persistance
+  fenetre_jours: 30
+  fenetre_jour_du_mois: 7
+  min_mois_cibles: 12
+  periodes_exclues:
+    - [2021-09-01, 2023-06-30]
+  full_day_ahead: true

@@ -55,6 +55,10 @@ def save_quote(mkt: Market, q: Quote, label: str, root: Path = PRICINGS, overwri
         q.financing.to_csv(out / "funding.csv")
     if len(q.strategies):
         q.strategies.to_csv(out / "strategies.csv")
+    if q.deviation is not None and len(q.deviation.by_month):
+        q.deviation.by_month.to_csv(out / "deviation_by_month.csv")
+    if q.deviation_model is not None:
+        q.deviation_model.table(36).to_csv(out / "deviation_rmse_by_horizon.csv")
     record = {
         "label": label, "product": q.product.name, "physical": q.product.physical,
         "side": q.side,
@@ -62,6 +66,8 @@ def save_quote(mkt: Market, q: Quote, label: str, root: Path = PRICINGS, overwri
         "volume_mwh": q.volume, "fair_price": q.fair_price, "offer_price": q.price,
         "margin": {"eur": q.margin.eur, "rule": q.margin.rule, **q.margin.detail},
         "risk": {"cost_eur": q.risk.cost, "sigma_eur": q.risk.sigma},
+        "deviation": None if q.deviation is None else {"cost_eur": q.deviation.cost, "sigma_eur": q.deviation.sigma,
+                                                       "method": q.deviation.method},
         "hedge": q.hedge_values, "context": q.context, "warnings": q.warnings,
         "curve": {"method": mkt.meta.get("method"), "code_version": mkt.meta.get("code_version"),
                   "hours": len(mkt.curve), "from": str(mkt.first_day), "to": str(mkt.last_day)},

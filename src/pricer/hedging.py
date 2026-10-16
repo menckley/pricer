@@ -150,3 +150,15 @@ def listed_hedge(mkt: Market, p: Product, r) -> Hedge:
                            "hedge value €": mw * n * r.settlement}]).set_index("EEX contract")
     hedged = p.mw.reindex(mkt.curve.index, fill_value=0.0)
     return Hedge(LISTED, table, hedged, hedged * 0.0, pd.Series(True, index=mkt.curve.index))
+
+
+FULL_DA = "Full day-ahead"
+
+
+def full_da_hedge(mkt: Market, p: Product) -> Hedge:
+    """Aucune couverture EEX : tout le volume est acheté (ou revendu) en day-ahead. `covered` est vrai partout :
+    le risque de niveau de tout le volume est porté par la prime de déviation, pas par l'avertissement
+    « sans couverture possible »."""
+    require_on_grid(mkt, p)
+    q = p.mw.reindex(mkt.curve.index, fill_value=0.0)
+    return Hedge(FULL_DA, pd.DataFrame(), q * 0.0, q, pd.Series(True, index=mkt.curve.index))

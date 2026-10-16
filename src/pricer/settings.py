@@ -40,6 +40,11 @@ class Settings:
     margin_shape_pct: float | None
     margin_per_year: float | None
     margin_floor: float | None
+    deviation_lookback: int | None = None          # jours de spot de la prévision par persistance
+    deviation_day_window: int | None = None        # origines à ± n jours du jour du mois de la date de pricing
+    deviation_min_months: int | None = None        # mois cibles distincts minimum par horizon
+    deviation_excluded: tuple | None = None        # périodes exclues [(début, fin), ...]
+    full_day_ahead: bool | None = None             # évaluer le scénario full day-ahead
     hash_pricer: str = ""
     hash_margin: str = ""
 
@@ -48,6 +53,8 @@ class Settings:
         d = Path(config_dir)
         p, h1 = _read(d / "pricer.yaml")
         m, h2 = _read(d / "marge.yaml")
+        dev = p.get("deviation") or {}
+        excl = dev.get("periodes_exclues")
         s = cls(sourcing_days=int(p["paiements"]["sourcing_jours"]), client_days=int(p["paiements"]["client_jours"]),
                 day_count=int(p["paiements"]["base_jours"]), spread_bp=p["financement"]["spread_bp"],
                 eex_fee=p["frais"]["eex_eur_mwh"], epex_fee=p["frais"]["epex_eur_mwh"],
@@ -59,6 +66,10 @@ class Settings:
                 history_start=p["risque"]["historique_debut"], strategy=p["couverture"]["strategie"],
                 margin_base=m["base_eur_mwh"], margin_shape_pct=m["forme_pct"],
                 margin_per_year=m["duree_eur_mwh_par_an"], margin_floor=m["plancher_eur"],
+                deviation_lookback=dev.get("fenetre_jours"), deviation_day_window=dev.get("fenetre_jour_du_mois"),
+                deviation_min_months=dev.get("min_mois_cibles"),
+                deviation_excluded=None if excl is None else tuple((a, b) for a, b in excl),
+                full_day_ahead=dev.get("full_day_ahead"),
                 hash_pricer=h1, hash_margin=h2)
         s.validate()
         return s
@@ -79,14 +90,27 @@ class Settings:
             v = getattr(self, name)
             if v is not None and float(v) < 0:
                 errors.append(f"{name} négatif")
-        from pricer.hedging import STRATEGIES
-        if self.strategy != "auto" and self.strategy not in STRATEGIES:
-            errors.append(f"couverture : strategie « auto » ou {', '.join(STRATEGIES)}")
+        from pricer.hedging import FULL_DA, STRATEGIES
+        if self.strategy != "auto" and self.strategy not in STRATEGIES and self.strategy != FULL_DA:
+            errors.append(f"couverture : strategie « auto », {', '.join(STRATEGIES)} ou {FULL_DA}")
+        for a, b in self.deviation_excluded or ():
+            if not (isinstance(a, date) and isinstance(b, date) and a <= b):
+                errors.append("deviation : periodes_exclues = liste de [début, fin] (dates AAAA-MM-JJ)")
+        if self.deviation_lookback is not None and self.deviation_lookback < 7:
+            errors.append("deviation : fenetre_jours ≥ 7")
         if errors:
             raise ValueError("paramètres invalides : " + " ; ".join(errors))
 
-    def missing(self, need_financing: bool, manual_margin: bool, physical: bool = True) -> list[str]:
+    def missing(self, need_financing: bool, manual_margin: bool, physical: bool = True,
+                need_deviation: bool = False) -> list[str]:
         out = []
+        if need_deviation:
+            for key, v in (("fenetre_jours", self.deviation_lookback),
+                           ("fenetre_jour_du_mois", self.deviation_day_window),
+                           ("min_mois_cibles", self.deviation_min_months),
+                           ("periodes_exclues", self.deviation_excluded), ("full_day_ahead", self.full_day_ahead)):
+                if v is None:
+                    out.append(f"config/pricer.yaml → deviation.{key}")
         if physical and self.conversion_fee is None:
             out.append("config/pricer.yaml → frais.conversion_fin_phys_eur_mwh")
         if self.eex_fee is None:

@@ -101,7 +101,8 @@ def test_mixed_product_refused_and_strategy_comparison():
     with pytest.raises(ValueError):
         _quote(m, a + b, s)
     q = _quote(m, block(m, date(2027, 1, 10), date(2027, 3, 20), 2, "sell", "Peak"), s)
-    assert set(q.strategies.index) == {"Base+Peak monthly", "Base+Peak quarterly", "Base only monthly"}
+    assert set(q.strategies.index) == {"Base+Peak monthly", "Base+Peak quarterly", "Base only monthly",
+                                       "Full day-ahead"}
     assert q.strategies.loc["Base+Peak monthly", "risk cost €"] < q.strategies.loc["Base only monthly", "risk cost €"]
 
 
@@ -125,7 +126,9 @@ def test_warning_for_unhedgeable_current_month():
     p = block(m, date(2026, 10, 14), date(2026, 11, 30), 1, "sell")
     q = _quote(m, p, s)
     assert q.hedge_values["unhedgeable MWh (no quoted month/quarter/year)"] > 0
-    assert any("without any EEX hedge" in w for w in q.warnings)
+    assert any("without any EEX hedge" in w and "deviation premium" in w for w in q.warnings)
+    # le risque de niveau du mois en cours est maintenant chiffré : prime de déviation sur octobre seulement
+    assert q.deviation.cost > 0 and list(q.deviation.by_month.index) == ["2026-10"]
 
 
 def test_listed_contract_is_its_own_hedge():

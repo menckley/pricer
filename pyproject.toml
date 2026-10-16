@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pricer"
-version = "0.4.0"
+version = "0.5.0"
 description = "Pricer de produits structurés électricité France, sur la HPFC et les settlements de power-hpfc"
 requires-python = ">=3.11"
 # power-hpfc doit être installé séparément depuis son clone local (pip install -e power-hpfc)

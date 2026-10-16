@@ -4,6 +4,10 @@ Prix = prix juste ± (risque + frais + financement + marge) / volume, avec + pou
 (on lui facture nos coûts) et − pour un achat à une contrepartie (on les déduit du prix payé).
 Le financement ne s'applique qu'aux ventes physiques : sourcing payé à J+`sourcing_jours`, client à
 J+`client_jours`, comptés depuis le premier jour livré de chaque mois, au taux €STR + spread.
+
+Scénarios comparés pour un produit profilé : les stratégies de couverture EEX et « Full day-ahead » (aucun
+contrat EEX, tout en day-ahead). Le risque de niveau des volumes traités en day-ahead sans couverture (tout le
+volume en full day-ahead, le mois en cours dans les autres scénarios) est la prime de déviation (deviation.py).
 """
 from __future__ import annotations
 
@@ -14,7 +18,9 @@ import numpy as np
 import pandas as pd
 
 from pricer import rates
-from pricer.hedging import LISTED, STRATEGIES, Hedge, hedge, hedge_summary, listed_contract, listed_hedge
+from pricer.deviation import METHOD, DeviationModel, DeviationResult, build_model, deviation_premium
+from pricer.hedging import (FULL_DA, LISTED, STRATEGIES, Hedge, full_da_hedge, hedge, hedge_summary,
+                            listed_contract, listed_hedge)
 from pricer.market import Market
 from pricer.products import Product, require_on_grid
 from pricer.risk import RiskResult, history_bounds, residual_risk
@@ -44,6 +50,8 @@ class Quote:
     strategies: pd.DataFrame
     context: dict
     warnings: list = field(default_factory=list)
+    deviation: DeviationResult | None = None
+    deviation_model: DeviationModel | None = None
 
 
 def margin_by_rules(s: Settings, volume: float, shape_value: float, years: float) -> Margin:
@@ -69,6 +77,18 @@ def financing_cost(mkt: Market, p: Product, s: Settings, rate_pct: float) -> pd.
     return m
 
 
+def shape_value(mkt: Market, p: Product) -> float:
+    """Prime de forme du produit (EUR, signée) : valeur à la HPFC − valeur des mêmes MWh au prix moyen de leur
+    bloc Peak / Offpeak du mois. Indépendante du scénario de couverture : c'est l'assiette de la marge de forme."""
+    q = p.mw
+    px = mkt.price[q.index]
+    key = [mkt.month[q.index], mkt.is_peak[q.index]]
+    full = pd.DataFrame({"px": mkt.price, "m": mkt.month, "pk": mkt.is_peak})
+    block_mean = full.groupby(["m", "pk"])["px"].mean()
+    ref = block_mean.reindex(pd.MultiIndex.from_arrays(key)).to_numpy()
+    return float((q.to_numpy() * (px.to_numpy() - ref)).sum())
+
+
 def _years(mkt: Market, p: Product) -> float:
     d = mkt.day[p.mw.index]
     return ((d.max() - d.min()).days + 1) / 365.25
@@ -88,10 +108,24 @@ def _da_mwh(hv: dict) -> float:
     return hv["day-ahead surplus to sell MWh"] + hv["day-ahead shortfall to buy MWh"]
 
 
+_MODELS: dict = {}
+
+
+def deviation_model(mkt: Market, s: Settings, spot: pd.Series) -> DeviationModel:
+    """Modèle de déviation, gardé en mémoire pour un même historique spot et les mêmes paramètres."""
+    key = (spot.index[0], spot.index[-1], len(spot), float(spot.sum()), mkt.pricing_date.day,
+           s.deviation_lookback, s.deviation_day_window, s.deviation_min_months, s.deviation_excluded)
+    if key not in _MODELS:
+        _MODELS.clear()
+        _MODELS[key] = build_model(mkt, spot, s.deviation_lookback, s.deviation_excluded, s.deviation_day_window,
+                                   s.deviation_min_months)
+    return _MODELS[key]
+
+
 def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spot: pd.Series | None = None,
           manual_margin_eur_mwh: float | None = None, manual_reason: str = "") -> Quote:
     """Prix d'un deal. `strategy` : « auto » (défaut du config) ou une clé de STRATEGIES.
-    En « auto », le scénario retenu est le moins cher (risque, frais, conversion, liquidité, marge) ;
+    En « auto », le scénario retenu est le moins cher (risque, déviation, frais, conversion, liquidité, marge) ;
     à égalité, celui qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX.
     Prime de liquidité : `eur_mwh_par_mw` × (MW max traités sur un contrat − `seuil_mw`), sur les MWh couverts EEX."""
     require_on_grid(mkt, p)
@@ -101,12 +135,15 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         raise ValueError("marge manuelle : un motif est obligatoire")
     side = p.side
     need_fin = p.physical and side == "sell"
-    missing = s.missing(need_fin, manual_margin_eur_mwh is not None, p.physical)
+    listed = listed_contract(mkt, p)
+    missing = s.missing(need_fin, manual_margin_eur_mwh is not None, p.physical, need_deviation=listed is None)
     if missing:
         raise LookupError("paramètres à renseigner avant de pricer : " + ", ".join(missing))
     strategy = strategy or s.strategy
-    if strategy != "auto" and strategy not in STRATEGIES:
-        raise ValueError(f"stratégie inconnue {strategy!r} : auto, {', '.join(STRATEGIES)}")
+    if strategy != "auto" and strategy not in STRATEGIES and strategy != FULL_DA:
+        raise ValueError(f"stratégie inconnue {strategy!r} : auto, {', '.join(STRATEGIES)}, {FULL_DA}")
+    if strategy == FULL_DA and not s.full_day_ahead and listed is None:
+        raise ValueError("scénario Full day-ahead demandé mais désactivé (deviation.full_day_ahead: false)")
     if spot is None:
         spot = mkt.spot(*history_bounds(mkt, s.history_start))
     V, sq = p.abs_volume, p.volume
@@ -124,7 +161,8 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         raise ValueError("marge manuelle négative")
     years = _years(mkt, p)
 
-    listed = listed_contract(mkt, p)
+    notes = []
+    dev_model = None
     if listed is not None:
         # produit coté : couvert par lui-même, aucune stratégie à choisir
         h = listed_hedge(mkt, p, listed)
@@ -133,29 +171,49 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         hv = {**hv, "curve value €": hv["EEX hedge at settlement €"], "settlement rounding €": 0.0}
         rk = RiskResult(0.0, 0.0, s.confidence, s.correlation,
                         pd.DataFrame(columns=["σ €", "mean €", "samples"]), pd.DataFrame())
-        candidates = {LISTED: (h, hv, rk)}
+        candidates = {LISTED: (h, hv, rk, DeviationResult(0.0, 0.0, s.confidence, pd.DataFrame()))}
     else:
+        dev_model = deviation_model(mkt, s, spot)
         candidates = {}
         for strat in STRATEGIES:
             h = hedge(mkt, p, strat)
             hv = hedge_summary(mkt, p, h)
-            candidates[strat] = (h, hv, residual_risk(mkt, h, spot, s.confidence, s.window, s.correlation))
+            rk = residual_risk(mkt, h, spot, s.confidence, s.window, s.correlation)
+            uncovered = p.mw[~h.covered[p.mw.index]]                 # mois en cours : aucun produit coté
+            candidates[strat] = (h, hv, rk, deviation_premium(mkt, uncovered, dev_model, s.confidence))
+        if s.full_day_ahead or strategy == FULL_DA:
+            h = full_da_hedge(mkt, p)
+            hv = hedge_summary(mkt, p, h)
+            try:
+                dv = deviation_premium(mkt, p.mw, dev_model, s.confidence)
+            except LookupError as e:                                 # horizon trop long pour l'historique
+                if strategy == FULL_DA:
+                    raise
+                notes.append(f"{FULL_DA} not evaluated: {e}")
+            else:
+                candidates[FULL_DA] = (h, hv, residual_risk(mkt, h, spot, s.confidence, s.window, s.correlation),
+                                       dv)
+        # assiette de la marge de forme : la même pour tous les scénarios
+        ref_shape = shape_value(mkt, p)
 
     evaluated, comp = {}, []
-    for name, (h, hv, rk) in candidates.items():
+    for name, (h, hv, rk, dv) in candidates.items():
         fees = s.eex_fee * hv["EEX hedged MWh"] + s.epex_fee * _da_mwh(hv)
-        conv = s.conversion_fee * V if p.physical else 0.0          # tous les MWh livrés physiquement
+        # conversion financier → physique : tous les MWh livrés physiquement, sauf en full day-ahead
+        # (l'énergie achetée en day-ahead est déjà physique)
+        conv = s.conversion_fee * V if p.physical and name != FULL_DA else 0.0
         mw_max = max_contract_mw(h)
         liq_rate = s.liquidity_eur_mwh_per_mw * max(0.0, mw_max - s.liquidity_threshold_mw)
         liq = liq_rate * hv["EEX hedged MWh"]
         if manual_margin_eur_mwh is not None:
             mg = Margin(manual_margin_eur_mwh * V, "manual", {"€/MWh": manual_margin_eur_mwh, "reason": manual_reason})
         else:
-            mg = margin_by_rules(s, V, hv["residual at HPFC €"], years)
-        costs = rk.cost + fees + conv + liq + mg.eur
-        evaluated[name] = (h, hv, rk, fees, conv, liq, mg)
+            mg = margin_by_rules(s, V, hv["residual at HPFC €"] if name == LISTED else ref_shape, years)
+        costs = rk.cost + dv.cost + fees + conv + liq + mg.eur
+        evaluated[name] = (h, hv, rk, dv, fees, conv, liq, mg)
         comp.append({"strategy": name, "EEX contracts": hv["EEX contracts"], "EEX hedged MWh": hv["EEX hedged MWh"],
                      "day-ahead MWh": _da_mwh(hv), "max MW per contract": mw_max, "risk cost €": rk.cost,
+                     "deviation premium €": dv.cost,
                      "fees + conversion €": fees + conv, "liquidity €": liq, "margin €": mg.eur,
                      "offer price €/MWh": (hv["curve value €"] / sq) + direction * (costs + fin_eur) / V})
     strategies = pd.DataFrame(comp).set_index("strategy")
@@ -164,8 +222,8 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     elif strategy == "auto":
         # le scénario gagnant est le moins cher : coûts les plus bas (risque, frais, conversion, liquidité, marge) ;
         # à égalité, le moins de MWh en day-ahead puis le moins de contrats
-        costs_eur = strategies["risk cost €"] + strategies["fees + conversion €"] + strategies["liquidity €"] \
-            + strategies["margin €"]
+        costs_eur = strategies["risk cost €"] + strategies["deviation premium €"] + strategies["fees + conversion €"] \
+            + strategies["liquidity €"] + strategies["margin €"]
         order = pd.DataFrame({"c": costs_eur.round(6), "da": strategies["day-ahead MWh"].round(6),
                               "n": strategies["EEX contracts"]})
         chosen = order.sort_values(["c", "da", "n"]).index[0]
@@ -174,17 +232,22 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     strategies["selected"] = strategies.index == chosen
     if listed is not None:
         strategies = pd.DataFrame()
-    h, hv, rk, fees, conv, liq, mg = evaluated[chosen]
+    h, hv, rk, dv, fees, conv, liq, mg = evaluated[chosen]
     fair = hv["curve value €"] / sq
 
-    adds = rk.cost + fees + conv + liq + fin_eur + mg.eur
+    adds = rk.cost + dv.cost + fees + conv + liq + fin_eur + mg.eur
     price = fair + direction * adds / V
     sign = "+" if direction > 0 else "−"
-    rows = [("EEX hedge at settlement", hv["EEX hedge at settlement €"] / sq * V),
-            ("Day-ahead residual at HPFC (shape premium)", hv["residual at HPFC €"] / sq * V),
-            ("Settlement rounding", hv["settlement rounding €"] / sq * V),
+    if chosen == FULL_DA:
+        head = [("Day-ahead sourcing at HPFC (no EEX hedge)", hv["residual at HPFC €"] / sq * V)]
+    else:
+        head = [("EEX hedge at settlement", hv["EEX hedge at settlement €"] / sq * V),
+                ("Day-ahead residual at HPFC (shape premium)", hv["residual at HPFC €"] / sq * V),
+                ("Settlement rounding", hv["settlement rounding €"] / sq * V)]
+    rows = head + [
             ("= Fair price", fair * V),
             (f"{sign} Residual risk cost ({rk.confidence:.0%})", direction * rk.cost),
+            (f"{sign} Day-ahead deviation premium ({METHOD})", direction * dv.cost),
             (f"{sign} EEX and day-ahead fees", direction * fees),
             (f"{sign} Financial-to-physical conversion", direction * conv),
             (f"{sign} Liquidity premium", direction * liq),
@@ -194,12 +257,15 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     lines = pd.DataFrame(rows, columns=["item", "€"]).set_index("item")
     lines["€/MWh"] = lines["€"] / V
 
-    warnings = []
+    warnings = list(notes)
     unhedge = hv["unhedgeable MWh (no quoted month/quarter/year)"]
     if unhedge > 0:
         warnings.append(f"{unhedge:,.0f} MWh sourced in day-ahead without any EEX hedge (current month): "
-                        "their price-level risk versus the HPFC is NOT included in the risk cost")
-    if chosen != LISTED and STRATEGIES[chosen]["levels"][0] != "mois" and _da_mwh(hv) > 1e-6:
+                        f"their price-level risk is the deviation premium ({METHOD})")
+    if chosen == FULL_DA:
+        warnings.append(f"no EEX hedge: the whole volume's price-level risk is the deviation premium ({METHOD}), "
+                        "measured on a naive forecast, larger than the HPFC's real error")
+    if chosen in STRATEGIES and STRATEGIES[chosen]["levels"][0] != "mois" and _da_mwh(hv) > 1e-6:
         warnings.append("quarterly hedge: the risk of each month versus its quarter is NOT included in the risk cost")
 
     context = {"market": mkt.name, "pricing date": str(mkt.pricing_date), "strategy requested": strategy,
@@ -211,5 +277,9 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
                "liquidity threshold MW": s.liquidity_threshold_mw, "liquidity €/MWh per MW": s.liquidity_eur_mwh_per_mw,
                "sourcing paid D+": s.sourcing_days, "client pays D+": s.client_days,
                "day count": s.day_count, **rate_ctx,
+               "deviation method": METHOD if dev_model else None,
+               "deviation lookback days": s.deviation_lookback if dev_model else None,
+               "deviation excluded periods": [f"{a} → {b}" for a, b in (s.deviation_excluded or ())] if dev_model
+               else None,
                "pricer config": s.hash_pricer, "margin config": s.hash_margin}
-    return Quote(p, side, V, fair, price, lines, h, hv, rk, fin, mg, strategies, context, warnings)
+    return Quote(p, side, V, fair, price, lines, h, hv, rk, fin, mg, strategies, context, warnings, dv, dev_model)

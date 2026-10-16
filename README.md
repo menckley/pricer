@@ -6,8 +6,10 @@ Pricer de produits structurés électricité France, construit uniquement sur de
   [`power-hpfc`](https://github.com/menckley/power-hpfc) (lus sur son clone local) ;
 - l'**€STR** publié par la BCE (API publique), pour le coût de financement.
 
-Aucune donnée n'est inventée ni approchée : une courbe absente, un produit non coté, un €STR non publié, une heure
-hors de la courbe ou un paramètre non renseigné arrêtent le calcul avec un message explicite.
+Aucune donnée n'est inventée : une courbe absente, un produit non coté, un €STR non publié, une heure hors de la
+courbe, un historique insuffisant ou un paramètre non renseigné arrêtent le calcul avec un message explicite. La
+seule approximation, la prime de déviation day-ahead, est mesurée sur des données réelles, prudente, et affichée
+comme telle (voir plus bas).
 
 ## Installation
 
@@ -31,7 +33,8 @@ ceux qui manquent.
    localement), charge la dernière courbe, vérifie qu'elle reproduit tous les settlements de la séance, charge le
    spot historique.
 2. **Formulaire** : side (sell au client / buy à une contrepartie), settlement (physical delivery / financial
-   swap), product, période, MW, hedging, margin, puis **Price** et **Save pricing**.
+   swap), product, période, MW, hedging (auto ou un scénario imposé, dont Full day-ahead), margin, puis **Price**
+   et **Save pricing**.
 
 Produits disponibles :
 
@@ -51,11 +54,12 @@ Produits disponibles :
 | Résidu day-ahead attendu (HPFC) | Surplus revendus et manques achetés en day-ahead, valorisés sur la HPFC (prime de forme) |
 | **= Fair price** | Moyenne de la HPFC pondérée par les volumes |
 | Coût de risque du résidu | Quantile (95 %) du P&L du résidu, mesuré sur l'historique spot (voir ci-dessous) |
+| Prime de déviation day-ahead | Risque de niveau des MWh traités en day-ahead sans couverture EEX (tout le volume en full day-ahead, le mois en cours sinon) : proxy de persistance, voir ci-dessous |
 | Frais | `eex_eur_mwh` × MWh couverts + `epex_eur_mwh` × MWh traités en day-ahead |
 | Prime de liquidité | `eur_mwh_par_mw` × (MW max traités sur un contrat − `seuil_mw`), sur les MWh couverts EEX |
-| Conversion financier → physique | Livraison physique seulement : `conversion_fin_phys_eur_mwh` × tous les MWh du deal (les futures EEX France sont réglés financièrement) |
+| Conversion financier → physique | Livraison physique seulement : `conversion_fin_phys_eur_mwh` × tous les MWh du deal (les futures EEX France sont réglés financièrement) ; aucune en full day-ahead (le day-ahead est déjà physique) |
 | Coût de financement | Ventes physiques seulement : sourcing payé à J+5, client à J+50 depuis le premier jour livré du mois, taux €STR + spread, ACT/360 |
-| Marge | Règles de `config/marge.yaml`, ou saisie manuelle avec motif obligatoire |
+| Marge | Règles de `config/marge.yaml`, ou saisie manuelle avec motif obligatoire. Assiette de la part « forme » : prime de forme du produit (valeur à la HPFC − mêmes MWh au prix moyen de leur bloc Peak / Offpeak du mois), identique dans tous les scénarios |
 | **= Offer price** | Fair price + postes (vente au client) ou − postes (achat à une contrepartie) |
 
 ### Couverture
@@ -67,11 +71,15 @@ coût de risque nul ; aucune stratégie n'est proposée. Les stratégies ne serv
 Le découpage le plus fin en produits cotés à la fois en Base et en Peak : les mois si les trois mois du
 trimestre sont cotés, sinon le trimestre, sinon l'année. Sur chaque produit, MW Base = MWh offpeak ÷ heures
 offpeak et MW Peak = MWh peak ÷ heures peak − MW Base : le résidu a un volume nul sur chaque bloc.
-Trois stratégies de hedging sont évaluées à chaque pricing : `Base+Peak monthly` (mois cotés, sinon trimestre, sinon
-année), `Base+Peak quarterly` (trimestre, sinon année) et `Base only monthly`. En `auto` (défaut), le pricer retient
-la **moins chère** (risque + frais + conversion + liquidité + marge) ; à égalité, celle qui laisse le moins de MWh
-en day-ahead, puis le moins de contrats EEX.
-Les jours restants du mois en cours n'ont pas de produit mois / trimestre / an : ils restent dans le résidu.
+Quatre scénarios sont évalués à chaque pricing : `Base+Peak monthly` (mois cotés, sinon trimestre, sinon année),
+`Base+Peak quarterly` (trimestre, sinon année), `Base only monthly` et **`Full day-ahead`** (aucun contrat EEX :
+tout le volume est acheté ou revendu en day-ahead ; frais day-ahead sur tout le volume, ni conversion ni prime de
+liquidité ; risque = forme (même méthode que le résidu) + prime de déviation sur tout le volume). En `auto` (défaut),
+le pricer retient le **moins cher** (risque + déviation + frais + conversion + liquidité + marge) ; à égalité, celui
+qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX. Si un horizon du deal n'est pas mesurable
+(historique trop court), le full day-ahead n'est pas évalué et le résultat le signale.
+Les jours restants du mois en cours n'ont pas de produit mois / trimestre / an : ils restent dans le résidu, et leur
+risque de niveau est la prime de déviation à l'horizon 0.
 
 ### Coût de risque du résidu
 
@@ -83,9 +91,33 @@ avec une corrélation uniforme `correlation_mois` entre mois (0 = indépendants)
 σ, moyenne, pire et meilleur cas et le nombre d'échantillons de chaque mois.
 
 Hypothèses : P&L de loi normale pour le quantile ; corrélation uniforme entre mois. Non mesuré : le risque de
-niveau d'un mois à l'intérieur d'un trimestre ou d'une année couverts en bloc, et le risque de niveau des volumes
-sourcés en day-ahead sans couverture possible (mois en cours) : il faudrait des prix forward historiques, l'archive
-des settlements ne remonte qu'au 24/08/2026. Le résultat affiche un avertissement dans ces deux cas.
+niveau d'un mois à l'intérieur d'un trimestre ou d'une année couverts en bloc (il faudrait des prix forward
+historiques ; l'archive des settlements ne remonte qu'au 24/08/2026) : le résultat affiche un avertissement.
+
+### Prime de déviation day-ahead (proxy de persistance, prudent)
+
+Risque que le day-ahead réalisé s'écarte du niveau de la HPFC pour les MWh achetés ou revendus en day-ahead sans
+couverture. Faute d'historique forward gratuit (l'API EEX ne garde qu'environ 6 semaines de séances), il est mesuré
+sur l'historique spot ENTSO-E avec une prévision **naïve**, plus grossière qu'une HPFC : la prime est donc
+surestimée, ce qui est le sens prudent.
+
+1. Origines : chaque jour historique à ± `fenetre_jour_du_mois` jours du jour du mois de la date de pricing.
+2. Prévision par bloc (Peak, Offpeak) : moyenne spot des `fenetre_jours` derniers jours × saisonnalité du mois
+   cible ÷ saisonnalité moyenne de la fenêtre. Saisonnalité d'un mois calendaire : moyenne, sur les années civiles
+   complètes hors exclusion, de moyenne du mois ÷ moyenne de l'année.
+3. Erreur relative = réalisé ÷ prévision − 1, sur le reste du mois (horizon 0) ou sur le mois k (horizon k mois).
+4. Écart d'un horizon = RMSE de l'erreur (biais compris) ; au moins `min_mois_cibles` mois cibles distincts.
+5. Deal : σ du mois = |valeur Peak| × RMSE Peak + |valeur Offpeak| × RMSE Offpeak (valeurs à la HPFC) ;
+   σ = somme des mois (mois parfaitement corrélés) ; prime = z(confiance) × σ.
+
+La crise 2021-09 → 2023-06 est exclue (ni origine, ni cible, ni saisonnalité) : `periodes_exclues: []` pour la
+réintégrer. Tableaux : déviation par mois dans le résultat, RMSE par horizon dans l'archive détaillée.
+
+> **À faire quand l'archive sera assez longue** : remplacer, horizon par horizon, ce proxy par l'erreur mesurée des
+> HPFC archivées face au day-ahead réalisé, que `power-hpfc` calcule chaque jour (`python -m hpfc.cli accuracy`,
+> fichiers `data/accuracy/market=FR/`). Critère proposé : pour un horizon donné, au moins 12 mois livrés distincts
+> mesurés (soit environ 1 an d'archive pour l'horizon 1 mois, 2 ans pour 12 mois). En attendant, la prime reste
+> étiquetée « persistence proxy (conservative) ».
 
 ## Archivage et journal des pricings
 
@@ -109,6 +141,7 @@ L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de 
 | `valuation.py` | Prix juste, valeur face à K, décomposition par période et par bloc |
 | `hedging.py` | Découpage coté, stratégies de couverture, résidu |
 | `risk.py` | Coût de risque du résidu sur l'historique spot |
+| `deviation.py` | Prime de déviation day-ahead (proxy de persistance) |
 | `rates.py` | €STR BCE |
 | `settings.py` | Paramètres et politique de marge |
 | `quote.py` | Construction du prix |
@@ -121,8 +154,8 @@ L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de 
 
 1. **MW différents selon les heures** dans la grille semaine (aujourd'hui une case cochée = la même puissance).
 2. **Grilles saisonnières ou mensuelles** (aujourd'hui une seule semaine type pour toute la période).
-3. **Risque de niveau** : mois dans trimestre / année, et volumes du mois en cours sans couverture, quand l'archive
-   des settlements sera assez longue pour comparer spot réalisé et forward.
+3. **Risque de niveau** : mois dans trimestre / année quand l'archive des settlements sera assez longue ; prime de
+   déviation mesurée sur les HPFC archivées à la place du proxy de persistance (voir plus haut).
 4. **Couverture du mois en cours** avec les semaines, week-ends et jours EEX cotés.
 5. **Pas de 15 minutes** : le day-ahead est au quart d'heure depuis le 01/10/2025, le risque est mesuré à l'heure.
 6. **Fourniture sur courbe de consommation client** : profils types Enedis (à vérifier) ou courbe de charge réelle,

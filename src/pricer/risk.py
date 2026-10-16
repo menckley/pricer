@@ -53,7 +53,9 @@ def residual_risk(mkt: Market, h: Hedge, spot: pd.Series, confidence: float = 0.
         raise ValueError("niveau de confiance attendu dans ]0,5 ; 1[")
     if not 0 <= correlation <= 1:
         raise ValueError("corrélation attendue dans [0 ; 1]")
-    by_block = STRATEGIES[h.strategy]["peak"]
+    # recentrage par bloc Peak / Offpeak (Base seul pour « Base only ») ; full day-ahead : par bloc, le niveau
+    # de chaque bloc étant porté par la prime de déviation
+    by_block = STRATEGIES[h.strategy]["peak"] if h.strategy in STRATEGIES else True
 
     s_loc = spot.index.tz_convert(mkt.tz)
     s = pd.DataFrame({"price": spot.to_numpy(float), "ym": s_loc.strftime("%Y-%m"), "m": s_loc.month,

@@ -8,7 +8,7 @@ import pandas as pd
 from IPython.display import display
 
 from pricer import archive
-from pricer.hedging import STRATEGIES
+from pricer.hedging import FULL_DA, STRATEGIES
 from pricer.market import Market
 from pricer.products import WEEKDAYS, as_swap, block, custom, eex, empty_grid, quoted, read_profile_csv, weekly
 from pricer.quote import Quote, quote
@@ -98,7 +98,7 @@ class PricerForm:
         self.path = w.Text(value="", placeholder="CSV path (columns horodatage, mw)", description="File",
                            style=style, layout=w.Layout(width="600px"))
         self.week = WeekGrid()
-        self.strategy = w.Dropdown(options=[("Auto (least day-ahead volume)", "auto")] + [(k, k) for k in STRATEGIES],
+        self.strategy = w.Dropdown(options=[("Auto (cheapest scenario)", "auto")] + [(k, k) for k in (*STRATEGIES, FULL_DA)],
                                    value=settings.strategy, description="Hedging", style=style, layout=lay)
         self.margin_mode = w.Dropdown(options=[("Rules (config/marge.yaml)", "rules"), ("Manual", "manual")],
                                       value="rules", description="Margin", style=style, layout=lay)
@@ -191,7 +191,7 @@ def show(q: Quote) -> None:
         print(f"⚠ {msg}")
     display(q.lines.round(2))
     if len(q.strategies):
-        print("Hedging strategies (auto = least day-ahead volume, then lowest risk cost, then fewest contracts)")
+        print("Scenarios compared (auto = cheapest; tie: least day-ahead volume, then fewest contracts)")
         display(q.strategies.round(2))
     print("EEX hedge (position equivalent to the deal: hedge = trade the opposite side)")
     display(q.hedge.table.round(2))
@@ -200,6 +200,10 @@ def show(q: Quote) -> None:
           f"month correlation {q.risk.correlation:g})")
     if len(q.risk.by_month):
         display(q.risk.by_month.round(0))
+    if q.deviation is not None and len(q.deviation.by_month):
+        print(f"Day-ahead deviation premium: {q.deviation.cost:,.0f} € (σ {q.deviation.sigma:,.0f} €, "
+              f"{q.deviation.method})")
+        display(q.deviation.by_month.round(2))
     if len(q.financing):
         print("Funding of sourcing")
         display(q.financing.round(2))
