@@ -175,7 +175,7 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     if unhedge > 0:
         warnings.append(f"{unhedge:,.0f} MWh sourced in day-ahead without any EEX hedge (current month): "
                         "their price-level risk versus the HPFC is NOT included in the risk cost")
-    if chosen != LISTED and STRATEGIES[chosen]["levels"][0] != "mois":
+    if chosen != LISTED and STRATEGIES[chosen]["levels"][0] != "mois" and _da_mwh(hv) > 1e-6:
         warnings.append("quarterly hedge: the risk of each month versus its quarter is NOT included in the risk cost")
 
     context = {"market": mkt.name, "pricing date": str(mkt.pricing_date), "strategy requested": strategy,
