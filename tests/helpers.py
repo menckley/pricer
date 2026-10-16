@@ -78,6 +78,7 @@ def market() -> Market:
 
 def settings(**over) -> Settings:
     base = dict(sourcing_days=5, client_days=50, day_count=360, spread_bp=150.0, eex_fee=0.02, epex_fee=0.05, conversion_fee=0.095,
+                liquidity_threshold_mw=5.0, liquidity_eur_mwh_per_mw=0.01,
                 confidence=0.95, window=1, correlation=0.0, history_start=date(2019, 1, 1),
                 strategy="auto", margin_base=1.0, margin_shape_pct=10.0, margin_per_year=0.5,
                 margin_floor=500.0)

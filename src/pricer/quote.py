@@ -74,6 +74,16 @@ def _years(mkt: Market, p: Product) -> float:
     return ((d.max() - d.min()).days + 1) / 365.25
 
 
+def max_contract_mw(h: Hedge) -> float:
+    """Plus gros volume horaire traité sur un seul contrat EEX (Base, ou Base + Peak aux heures peak)."""
+    t = h.table
+    if t.empty:
+        return 0.0
+    if "MW" in t.columns:                                  # contrat coté couvert par lui-même
+        return float(t["MW"].abs().max())
+    return float(pd.concat([t["Base MW"].abs(), (t["Base MW"] + t["Peak MW"]).abs()], axis=1).max(axis=1).max())
+
+
 def _da_mwh(hv: dict) -> float:
     return hv["day-ahead surplus to sell MWh"] + hv["day-ahead shortfall to buy MWh"]
 
@@ -81,8 +91,9 @@ def _da_mwh(hv: dict) -> float:
 def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spot: pd.Series | None = None,
           manual_margin_eur_mwh: float | None = None, manual_reason: str = "") -> Quote:
     """Prix d'un deal. `strategy` : « auto » (défaut du config) ou une clé de STRATEGIES.
-    En « auto », la couverture retenue est celle qui laisse le moins de MWh à traiter en day-ahead ;
-    à égalité, le coût de risque le plus bas, puis le moins de contrats EEX."""
+    En « auto », le scénario retenu est le moins cher (risque, frais, conversion, liquidité, marge) ;
+    à égalité, celui qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX.
+    Prime de liquidité : `eur_mwh_par_mw` × (MW max traités sur un contrat − `seuil_mw`), sur les MWh couverts EEX."""
     require_on_grid(mkt, p)
     if p.mixed:
         raise ValueError("produit mixte achat / vente : coter chaque sens séparément (un prix par MWh n'a pas de sens)")
@@ -101,43 +112,6 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     V, sq = p.abs_volume, p.volume
     direction = 1.0 if side == "sell" else -1.0
 
-    listed = listed_contract(mkt, p)
-    if listed is not None:
-        # produit coté : couvert par lui-même, aucune stratégie à choisir
-        chosen = LISTED
-        h = listed_hedge(mkt, p, listed)
-        hv = hedge_summary(mkt, p, h)
-        # prix juste = settlement du contrat lui-même (pas la moyenne de la courbe, arrondie au centime près)
-        hv = {**hv, "curve value €": hv["EEX hedge at settlement €"], "settlement rounding €": 0.0}
-        rk = RiskResult(0.0, 0.0, s.confidence, s.correlation,
-                        pd.DataFrame(columns=["σ €", "mean €", "samples"]), pd.DataFrame())
-        fees = s.eex_fee * hv["EEX hedged MWh"]
-        conv = s.conversion_fee * V if p.physical else 0.0
-        strategies = pd.DataFrame()
-    else:
-        evaluated, comp = {}, []
-        for strat in STRATEGIES:
-            h = hedge(mkt, p, strat)
-            hv = hedge_summary(mkt, p, h)
-            rk = residual_risk(mkt, h, spot, s.confidence, s.window, s.correlation)
-            fees = s.eex_fee * hv["EEX hedged MWh"] + s.epex_fee * _da_mwh(hv)
-            conv = s.conversion_fee * V if p.physical else 0.0     # tous les MWh livrés physiquement
-            evaluated[strat] = (h, hv, rk, fees, conv)
-            comp.append({"strategy": strat, "EEX contracts": hv["EEX contracts"], "EEX hedged MWh": hv["EEX hedged MWh"],
-                         "day-ahead MWh": _da_mwh(hv), "risk cost €": rk.cost, "fees €": fees + conv,
-                         "risk + fees €/MWh": (rk.cost + fees + conv) / V})
-        strategies = pd.DataFrame(comp).set_index("strategy")
-        if strategy == "auto":
-            tol = 1e-6 * max(V, 1.0)
-            best_da = strategies["day-ahead MWh"].min()
-            cand = strategies[strategies["day-ahead MWh"] <= best_da + tol]
-            chosen = cand.sort_values(["risk cost €", "EEX contracts"]).index[0]
-        else:
-            chosen = strategy
-        strategies["selected"] = strategies.index == chosen
-        h, hv, rk, fees, conv = evaluated[chosen]
-    fair = hv["curve value €"] / sq
-
     if need_fin:
         d_estr, v_estr = rates.estr(mkt.pricing_date)
         rate = v_estr + s.spread_bp / 100
@@ -146,15 +120,64 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         rate_ctx = {"€STR date": str(d_estr), "€STR %": v_estr, "spread bp": s.spread_bp, "funding rate %": rate}
     else:
         fin, fin_eur, rate_ctx = pd.DataFrame(), 0.0, {}
+    if manual_margin_eur_mwh is not None and manual_margin_eur_mwh < 0:
+        raise ValueError("marge manuelle négative")
+    years = _years(mkt, p)
 
-    if manual_margin_eur_mwh is not None:
-        if manual_margin_eur_mwh < 0:
-            raise ValueError("marge manuelle négative")
-        mg = Margin(manual_margin_eur_mwh * V, "manual", {"€/MWh": manual_margin_eur_mwh, "reason": manual_reason})
+    listed = listed_contract(mkt, p)
+    if listed is not None:
+        # produit coté : couvert par lui-même, aucune stratégie à choisir
+        h = listed_hedge(mkt, p, listed)
+        hv = hedge_summary(mkt, p, h)
+        # prix juste = settlement du contrat lui-même (pas la moyenne de la courbe, arrondie au centime près)
+        hv = {**hv, "curve value €": hv["EEX hedge at settlement €"], "settlement rounding €": 0.0}
+        rk = RiskResult(0.0, 0.0, s.confidence, s.correlation,
+                        pd.DataFrame(columns=["σ €", "mean €", "samples"]), pd.DataFrame())
+        candidates = {LISTED: (h, hv, rk)}
     else:
-        mg = margin_by_rules(s, V, hv["residual at HPFC €"], _years(mkt, p))
+        candidates = {}
+        for strat in STRATEGIES:
+            h = hedge(mkt, p, strat)
+            hv = hedge_summary(mkt, p, h)
+            candidates[strat] = (h, hv, residual_risk(mkt, h, spot, s.confidence, s.window, s.correlation))
 
-    adds = rk.cost + fees + conv + fin_eur + mg.eur
+    evaluated, comp = {}, []
+    for name, (h, hv, rk) in candidates.items():
+        fees = s.eex_fee * hv["EEX hedged MWh"] + s.epex_fee * _da_mwh(hv)
+        conv = s.conversion_fee * V if p.physical else 0.0          # tous les MWh livrés physiquement
+        mw_max = max_contract_mw(h)
+        liq_rate = s.liquidity_eur_mwh_per_mw * max(0.0, mw_max - s.liquidity_threshold_mw)
+        liq = liq_rate * hv["EEX hedged MWh"]
+        if manual_margin_eur_mwh is not None:
+            mg = Margin(manual_margin_eur_mwh * V, "manual", {"€/MWh": manual_margin_eur_mwh, "reason": manual_reason})
+        else:
+            mg = margin_by_rules(s, V, hv["residual at HPFC €"], years)
+        costs = rk.cost + fees + conv + liq + mg.eur
+        evaluated[name] = (h, hv, rk, fees, conv, liq, mg)
+        comp.append({"strategy": name, "EEX contracts": hv["EEX contracts"], "EEX hedged MWh": hv["EEX hedged MWh"],
+                     "day-ahead MWh": _da_mwh(hv), "max MW per contract": mw_max, "risk cost €": rk.cost,
+                     "fees + conversion €": fees + conv, "liquidity €": liq, "margin €": mg.eur,
+                     "offer price €/MWh": (hv["curve value €"] / sq) + direction * (costs + fin_eur) / V})
+    strategies = pd.DataFrame(comp).set_index("strategy")
+    if listed is not None:
+        chosen = LISTED
+    elif strategy == "auto":
+        # le scénario gagnant est le moins cher : coûts les plus bas (risque, frais, conversion, liquidité, marge) ;
+        # à égalité, le moins de MWh en day-ahead puis le moins de contrats
+        costs_eur = strategies["risk cost €"] + strategies["fees + conversion €"] + strategies["liquidity €"] \
+            + strategies["margin €"]
+        order = pd.DataFrame({"c": costs_eur.round(6), "da": strategies["day-ahead MWh"].round(6),
+                              "n": strategies["EEX contracts"]})
+        chosen = order.sort_values(["c", "da", "n"]).index[0]
+    else:
+        chosen = strategy
+    strategies["selected"] = strategies.index == chosen
+    if listed is not None:
+        strategies = pd.DataFrame()
+    h, hv, rk, fees, conv, liq, mg = evaluated[chosen]
+    fair = hv["curve value €"] / sq
+
+    adds = rk.cost + fees + conv + liq + fin_eur + mg.eur
     price = fair + direction * adds / V
     sign = "+" if direction > 0 else "−"
     rows = [("EEX hedge at settlement", hv["EEX hedge at settlement €"] / sq * V),
@@ -164,6 +187,7 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
             (f"{sign} Residual risk cost ({rk.confidence:.0%})", direction * rk.cost),
             (f"{sign} EEX and day-ahead fees", direction * fees),
             (f"{sign} Financial-to-physical conversion", direction * conv),
+            (f"{sign} Liquidity premium", direction * liq),
             (f"{sign} Funding cost", direction * fin_eur),
             (f"{sign} Margin ({mg.rule})", direction * mg.eur),
             ("= Offer price", price * V)]
@@ -184,6 +208,7 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
                "confidence": s.confidence, "seasonal window ± months": s.window, "month correlation": s.correlation,
                "EEX fee €/MWh": s.eex_fee, "day-ahead fee €/MWh": s.epex_fee,
                "fin-to-phys conversion €/MWh": s.conversion_fee if p.physical else None,
+               "liquidity threshold MW": s.liquidity_threshold_mw, "liquidity €/MWh per MW": s.liquidity_eur_mwh_per_mw,
                "sourcing paid D+": s.sourcing_days, "client pays D+": s.client_days,
                "day count": s.day_count, **rate_ctx,
                "pricer config": s.hash_pricer, "margin config": s.hash_margin}

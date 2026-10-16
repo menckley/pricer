@@ -1,4 +1,5 @@
-"""Archivage d'un pricing dans pricings/<date de pricing>/<libellé>/ : de quoi le relire et le refaire."""
+"""Archive détaillée d'un pricing (exports/pricings/<date de pricing>/<libellé>/, ou zip dans l'application).
+Le journal léger versionné sur GitHub est dans journal.py."""
 from __future__ import annotations
 
 import json
@@ -14,7 +15,7 @@ from pricer.products import Product
 from pricer.quote import Quote
 
 REPO = Path(__file__).resolve().parents[2]
-PRICINGS = REPO / "pricings"
+PRICINGS = REPO / "exports" / "pricings"        # archives détaillées locales (non versionnées)
 
 
 def slug(label: str) -> str:

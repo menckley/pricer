@@ -29,6 +29,8 @@ class Settings:
     eex_fee: float | None
     epex_fee: float | None
     conversion_fee: float | None
+    liquidity_threshold_mw: float | None
+    liquidity_eur_mwh_per_mw: float | None
     confidence: float
     window: int
     correlation: float
@@ -50,6 +52,8 @@ class Settings:
                 day_count=int(p["paiements"]["base_jours"]), spread_bp=p["financement"]["spread_bp"],
                 eex_fee=p["frais"]["eex_eur_mwh"], epex_fee=p["frais"]["epex_eur_mwh"],
                 conversion_fee=p["frais"].get("conversion_fin_phys_eur_mwh"),
+                liquidity_threshold_mw=(p.get("liquidite") or {}).get("seuil_mw"),
+                liquidity_eur_mwh_per_mw=(p.get("liquidite") or {}).get("eur_mwh_par_mw"),
                 confidence=float(p["risque"]["confiance"]), window=int(p["risque"]["fenetre_mois"]),
                 correlation=float(p["risque"]["correlation_mois"]),
                 history_start=p["risque"]["historique_debut"], strategy=p["couverture"]["strategie"],
@@ -71,7 +75,7 @@ class Settings:
             errors.append("risque : correlation_mois dans [0 ; 1]")
         if self.window < 0 or self.window > 5:
             errors.append("risque : fenetre_mois entre 0 et 5")
-        for name in ("eex_fee", "epex_fee", "conversion_fee", "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct"):
+        for name in ("eex_fee", "epex_fee", "conversion_fee", "liquidity_threshold_mw", "liquidity_eur_mwh_per_mw", "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct"):
             v = getattr(self, name)
             if v is not None and float(v) < 0:
                 errors.append(f"{name} négatif")
@@ -87,6 +91,10 @@ class Settings:
             out.append("config/pricer.yaml → frais.conversion_fin_phys_eur_mwh")
         if self.eex_fee is None:
             out.append("config/pricer.yaml → frais.eex_eur_mwh")
+        if self.liquidity_threshold_mw is None:
+            out.append("config/pricer.yaml → liquidite.seuil_mw")
+        if self.liquidity_eur_mwh_per_mw is None:
+            out.append("config/pricer.yaml → liquidite.eur_mwh_par_mw")
         if self.epex_fee is None:
             out.append("config/pricer.yaml → frais.epex_eur_mwh")
         if need_financing and self.spread_bp is None:

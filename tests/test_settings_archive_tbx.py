@@ -22,7 +22,8 @@ def test_config_loads_and_lists_missing_parameters():
         "financement: {spread_bp: null}\n"
         "frais: {eex_eur_mwh: 0.0125, epex_eur_mwh: 0.015, conversion_fin_phys_eur_mwh: null}\n"
         "risque: {confiance: 0.95, fenetre_mois: 1, correlation_mois: 0.0, historique_debut: 2019-01-01}\n"
-        "couverture: {strategie: auto}\n", encoding="utf-8")
+        "couverture: {strategie: auto}\n"
+        "liquidite: {seuil_mw: 10, eur_mwh_par_mw: 0.005}\n", encoding="utf-8")
     (tmp / "marge.yaml").write_text("base_eur_mwh: 1\nforme_pct: 10\nduree_eur_mwh_par_an: 0\nplancher_eur: null\n",
                                     encoding="utf-8")
     s = Settings.load(tmp)

@@ -23,3 +23,6 @@ risque:                     # coût de risque du résidu de couverture, sur l'hi
 couverture:
   strategie: "auto"   # base+peak fin, base+peak trimestres, base seule fin
   
+liquidite:
+  seuil_mw: 2         # MW traités sur un contrat sans prime
+  eur_mwh_par_mw: 0.15    # €/MWh ajoutés par MW au-delà du seuil

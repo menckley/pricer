@@ -24,6 +24,7 @@ class Product:
     name: str
     mw: pd.Series
     physical: bool = True
+    spec: dict | None = None        # définition compacte (journal) : de quoi reconstruire le produit
 
     def __post_init__(self):
         q = self.mw
@@ -61,7 +62,8 @@ class Product:
             raise ValueError("on ne combine pas une livraison physique et un swap financier")
         q = self.mw.add(sign * other.mw, fill_value=0.0)
         q = q[q != 0]
-        return Product(f"{self.name} {sep} {other.name}", q, self.physical)
+        spec = {"type": "combination", "legs": [self.spec, other.spec], "signs": [1, sign]}
+        return Product(f"{self.name} {sep} {other.name}", q, self.physical, spec)
 
     def __add__(self, other: "Product") -> "Product":
         return self._combine(other, 1.0, "+")
@@ -70,10 +72,10 @@ class Product:
         return self._combine(other, -1.0, "−")
 
     def __neg__(self) -> "Product":
-        return Product(f"-({self.name})", -self.mw, self.physical)
+        return Product(f"-({self.name})", -self.mw, self.physical, {"type": "scaled", "k": -1, "leg": self.spec})
 
     def __rmul__(self, k: float) -> "Product":
-        return Product(f"{k:g} × {self.name}", k * self.mw, self.physical)
+        return Product(f"{k:g} × {self.name}", k * self.mw, self.physical, {"type": "scaled", "k": k, "leg": self.spec})
 
 
 def require_on_grid(mkt: Market, p: Product) -> None:
@@ -117,7 +119,9 @@ def block(mkt: Market, start: date, end: date, mw: float, side: str = "buy", pro
         m &= ~mkt.is_peak
     elif profile != "Base":
         raise ValueError(f"profil inconnu {profile!r} : {', '.join(PROFILES)}")
-    return Product(name or _label(side, mw, profile, start, end), pd.Series(s * mw, index=mkt.curve.index[m]))
+    return Product(name or _label(side, mw, profile, start, end), pd.Series(s * mw, index=mkt.curve.index[m]),
+                   spec={"type": "block", "start": str(start), "end": str(end), "mw": mw, "side": side,
+                         "profile": profile})
 
 
 def grid_from_hours(hours, weekdays=range(7)) -> pd.DataFrame:
@@ -157,8 +161,11 @@ def weekly(mkt: Market, start: date, end: date, mw: float, grid, side: str = "bu
     if not on.any():
         raise ValueError("aucune heure cochée dans la période choisie")
     n_cells = int(g.sum())
+    rows = ["".join("1" if g[h, d] else "0" for h in range(24)) for d in range(7)]
     return Product(name or _label(side, mw, f"weekly profile ({n_cells} h/week)", start, end),
-                   pd.Series(s * mw, index=mkt.curve.index[on]))
+                   pd.Series(s * mw, index=mkt.curve.index[on]),
+                   spec={"type": "weekly", "start": str(start), "end": str(end), "mw": mw, "side": side,
+                         "grid_by_weekday_hours_0_23": dict(zip(WEEKDAYS, rows))})
 
 
 def shaped(mkt: Market, start: date, end: date, mw: float, hours, weekdays=range(7), side: str = "buy",
@@ -175,7 +182,12 @@ def custom(mkt: Market, mw: pd.Series, name: str) -> Product:
     """Profil libre : puissance signée par heure, index horodaté avec fuseau (UTC ou local)."""
     if not isinstance(mw.index, pd.DatetimeIndex) or mw.index.tz is None:
         raise ValueError(f"{name} : l'index doit être horodaté avec un fuseau horaire")
-    p = Product(name, mw.tz_convert("UTC"))
+    q = mw.tz_convert("UTC")
+    import hashlib
+    digest = hashlib.sha256(pd.util.hash_pandas_object(q, index=True).to_numpy().tobytes()).hexdigest()[:16]
+    p = Product(name, q, spec={"type": "hourly", "hours": int(len(q)), "mwh": float(q.sum()),
+                               "first_hour_utc": str(q.index.min()), "last_hour_utc": str(q.index.max()),
+                               "profile_hash": digest})
     require_on_grid(mkt, p)
     return p
 
@@ -200,7 +212,9 @@ def eex(mkt: Market, contract: str, profile: str = "Base", mw: float = 1.0, side
         raise KeyError(f"{profile} {contract} non coté le {mkt.pricing_date} ; cotés : {quoted(mkt, profile)}")
     r = row.iloc[0]
     mw = _mw(mw)
-    return block(mkt, r["start"], r["end"], mw, side, profile, f"{VERB[_check_side(side)]} {mw:g} MW {profile} {contract}")
+    p = block(mkt, r["start"], r["end"], mw, side, profile, f"{VERB[_check_side(side)]} {mw:g} MW {profile} {contract}")
+    return Product(p.name, p.mw, p.physical, {"type": "eex", "contract": contract, "profile": profile, "mw": mw,
+                                             "side": side})
 
 
 def as_swap(p: Product) -> Product:
@@ -208,4 +222,5 @@ def as_swap(p: Product) -> Product:
     if p.mixed:
         raise ValueError("swap : un seul sens attendu")
     role = "fixed-price payer" if p.side == "buy" else "fixed-price receiver"
-    return Product(f"Financial swap, {role} — {p.name}", p.mw, physical=False)
+    return Product(f"Financial swap, {role} — {p.name}", p.mw, physical=False,
+                   spec={**(p.spec or {}), "financial_swap": True})

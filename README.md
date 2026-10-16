@@ -52,6 +52,7 @@ Produits disponibles :
 | **= Fair price** | Moyenne de la HPFC pondérée par les volumes |
 | Coût de risque du résidu | Quantile (95 %) du P&L du résidu, mesuré sur l'historique spot (voir ci-dessous) |
 | Frais | `eex_eur_mwh` × MWh couverts + `epex_eur_mwh` × MWh traités en day-ahead |
+| Prime de liquidité | `eur_mwh_par_mw` × (MW max traités sur un contrat − `seuil_mw`), sur les MWh couverts EEX |
 | Conversion financier → physique | Livraison physique seulement : `conversion_fin_phys_eur_mwh` × tous les MWh du deal (les futures EEX France sont réglés financièrement) |
 | Coût de financement | Ventes physiques seulement : sourcing payé à J+5, client à J+50 depuis le premier jour livré du mois, taux €STR + spread, ACT/360 |
 | Marge | Règles de `config/marge.yaml`, ou saisie manuelle avec motif obligatoire |
@@ -68,8 +69,8 @@ trimestre sont cotés, sinon le trimestre, sinon l'année. Sur chaque produit, M
 offpeak et MW Peak = MWh peak ÷ heures peak − MW Base : le résidu a un volume nul sur chaque bloc.
 Trois stratégies de hedging sont évaluées à chaque pricing : `Base+Peak monthly` (mois cotés, sinon trimestre, sinon
 année), `Base+Peak quarterly` (trimestre, sinon année) et `Base only monthly`. En `auto` (défaut), le pricer retient
-celle qui laisse le moins de MWh à revendre ou acheter en day-ahead (exposition minimale au court terme) ; à
-égalité, le coût de risque le plus bas, puis le moins de contrats EEX.
+la **moins chère** (risque + frais + conversion + liquidité + marge) ; à égalité, celle qui laisse le moins de MWh
+en day-ahead, puis le moins de contrats EEX.
 Les jours restants du mois en cours n'ont pas de produit mois / trimestre / an : ils restent dans le résidu.
 
 ### Coût de risque du résidu
@@ -86,12 +87,18 @@ niveau d'un mois à l'intérieur d'un trimestre ou d'une année couverts en bloc
 sourcés en day-ahead sans couverture possible (mois en cours) : il faudrait des prix forward historiques, l'archive
 des settlements ne remonte qu'au 24/08/2026. Le résultat affiche un avertissement dans ces deux cas.
 
-## Archivage
+## Archivage et journal des pricings
 
-« Save pricing » écrit `pricings/<date de pricing>/<libellé>/` : position heure par heure, construction du
-prix, couverture, risque par mois et échantillons, financement, comparaison des stratégies, et `pricing.json`
-(résultats, paramètres utilisés avec l'empreinte des fichiers de configuration, commits de power-hpfc et de
-pricer). Un pricing existant n'est jamais écrasé.
+- **Journal sur GitHub (automatique, dans l'application Streamlit)** : chaque clic sur **Price** ajoute, en un seul
+  commit dans ce dépôt, une ligne à `pricings/journal.csv` et un fichier léger
+  `pricings/AAAA/MM/<horodatage>_<libellé>.json` (≈ 10 Ko) : définition compacte du produit (grille, bloc,
+  contrat ; pas la série horaire), construction du prix, couverture, stratégies comparées, risque par mois, marge,
+  avertissements et paramètres utilisés. Rien n'est jamais écrasé. Jeton : secret `PRICER_TOKEN` de l'application,
+  *fine-grained*, limité à ce dépôt, **Contents : Read and write**. Sans jeton, le journal est désactivé.
+- **Archive détaillée** : bouton « Download pricing (zip) » de l'application (position heure par heure,
+  échantillons de risque, financement…) ; en local, aussi `exports/pricings/` (non versionné).
+
+L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de pousser des modifications du code.
 
 ## Organisation du code
 
@@ -106,7 +113,8 @@ pricer). Un pricing existant n'est jamais écrasé.
 | `settings.py` | Paramètres et politique de marge |
 | `quote.py` | Construction du prix |
 | `tbx.py` | TBx, batterie en valeur intrinsèque, backtest HPFC / spot |
-| `archive.py` | Archivage des pricings |
+| `archive.py` | Archive détaillée (locale ou zip) |
+| `journal.py` | Journal léger des pricings sur GitHub (un commit par pricing) |
 | `ui.py` | Formulaire Jupyter (ipywidgets) |
 
 ## Pistes d'amélioration

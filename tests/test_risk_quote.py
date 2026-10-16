@@ -105,12 +105,13 @@ def test_mixed_product_refused_and_strategy_comparison():
     assert q.strategies.loc["Base+Peak monthly", "risk cost €"] < q.strategies.loc["Base only monthly", "risk cost €"]
 
 
-def test_auto_strategy_minimises_day_ahead_volume_and_conversion_cost():
+def test_auto_strategy_is_the_cheapest_and_conversion_cost():
     m, s = market(), settings()
     p = weekly(m, date(2027, 1, 1), date(2027, 6, 30), 5, grid_from_hours(range(6, 22), range(5)), "sell")
     q = _quote(m, p, s)
     sel = q.strategies[q.strategies["selected"]]
-    assert len(sel) == 1 and sel["day-ahead MWh"].iloc[0] == q.strategies["day-ahead MWh"].min()
+    assert len(sel) == 1 and sel["offer price €/MWh"].iloc[0] == q.strategies["offer price €/MWh"].min()
+    assert abs(sel["offer price €/MWh"].iloc[0] - q.price) < 1e-9
     conv = q.lines.loc["+ Financial-to-physical conversion", "€"]
     assert abs(conv - 0.095 * q.volume) < 1e-9
     qs = _quote(m, as_swap(p), s)
@@ -138,3 +139,13 @@ def test_listed_contract_is_its_own_hedge():
     # un bloc qui n'est pas un contrat coté reste couvert par stratégie
     q = _quote(m, block(m, date(2027, 1, 10), date(2027, 2, 20), 1, "sell"), s)
     assert q.context["strategy selected"] != "Listed EEX contract"
+
+
+
+def test_liquidity_premium_only_above_threshold():
+    m = market()
+    small = _quote(m, eex(m, "Cal-27", "Base", 5, "sell"), settings())
+    big = _quote(m, eex(m, "Cal-27", "Base", 25, "sell"), settings())
+    assert small.lines.loc["+ Liquidity premium", "€"] == 0
+    assert abs(big.lines.loc["+ Liquidity premium", "€/MWh"] - 0.01 * (25 - 5)) < 1e-9
+    assert big.price > small.price
