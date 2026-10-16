@@ -1,75 +1,129 @@
 # pricer
 
-Pricers de produits d'électricité France, construits uniquement sur des données gratuites et archivées :
+Pricer de produits structurés électricité France, construit uniquement sur des données gratuites et archivées :
 
-- la **HPFC** horaire et les **settlements EEX** du dépôt [`power-hpfc`](https://github.com/menckley/power-hpfc) (lus sur son clone local) ;
-- la courbe zéro-coupon de la **BCE** (API publique), pour l'actualisation.
+- la **HPFC** horaire, les **settlements EEX** et le **spot day-ahead** historique archivés par
+  [`power-hpfc`](https://github.com/menckley/power-hpfc) (lus sur son clone local) ;
+- l'**€STR** publié par la BCE (API publique), pour le coût de financement.
 
-Aucune donnée n'est inventée ni approchée : si une donnée manque (courbe non archivée, produit non coté, taux BCE non publié, heure hors de la courbe), le calcul s'arrête avec un message explicite.
-
-## Contenu
-
-| Élément | Rôle |
-|---|---|
-| `notebooks/pricer_structures_v1.ipynb` | Pricer de produits structurés linéaires (V1) |
-| `pricings/<date de pricing>/<libellé>/` | Pricings archivés (voir section 7) |
+Aucune donnée n'est inventée ni approchée : une courbe absente, un produit non coté, un €STR non publié, une heure
+hors de la courbe ou un paramètre non renseigné arrêtent le calcul avec un message explicite.
 
 ## Installation
 
-Le notebook utilise l'environnement où `power-hpfc` est installé en mode éditable :
+Les dépôts `power-hpfc` et `pricer` sont côte à côte, `power-hpfc` déjà installé en mode éditable :
 
 ```bash
 cd ~/Documents/2-Coding/python/GitHub
-../envir_lib/bin/python -m pip install -e "power-hpfc[dev,app]"
+../envir_lib/bin/python -m pip install -e "pricer[notebook,dev]"
+cd pricer && ../../envir_lib/bin/python -m pytest -q
 ```
 
-Les dépôts `power-hpfc` et `pricer` doivent être côte à côte dans le même dossier. La cellule 1.2 synchronise `power-hpfc` avec GitHub (`git pull --ff-only`), refuse de continuer si `data/` a été modifié localement, et vérifie que le paquet `hpfc` importé est bien celui de ce clone.
+Avant le premier pricing, renseigner les paramètres à `null` de `config/pricer.yaml` (frais EEX et day-ahead,
+spread de financement) et de `config/marge.yaml` (politique de marge). La cellule « Données » du notebook liste
+ceux qui manquent.
 
-## Pricer V1 : produits linéaires
+## Utilisation
 
-Un produit linéaire a un gain Σₕ qₕ · (Pₕ − K) : il se valorise avec la seule HPFC, sans volatilité.
+`notebooks/pricer.ipynb` :
 
-| Section | Contenu | Contrôles intégrés |
-|---|---|---|
-| 1. Données | Synchronisation, chargement de la courbe et des settlements de la séance | La courbe reproduit chaque produit EEX coté (écart ≤ `arbitrage_tol`) |
-| 2. Produits | `block` (Base / Peak / Offpeak), `shaped` (heures et jours sur mesure), `custom` (profil libre heure par heure), `eex` (produit coté) ; combinaisons `+`, `−`, `k ×` | Cal-27 Base = son settlement ; 64 produits cotés repricés ; Peak + Offpeak = Base |
-| 3. Valorisation | Valeur face à K (constant ou horaire), non actualisée et actualisée ; prix juste future et prix juste OTC | Valeur nulle au prix juste ; linéarité ; changement de signe avec le sens |
-| 4. Décomposition | Par mois, trimestre ou année, et par bloc Peak / Offpeak | Somme des lignes = total ; settlements mensuels retrouvés |
-| 5. Couverture | Base + Peak sur le découpage le plus fin coté ; résidu et prime de forme | Produit EEX couvert sans résidu ; MWh de chaque bloc couverts exactement |
-| 6. TBx | TB1, TB2, TB4 de la HPFC et du spot réalisé ; batterie en valeur intrinsèque ; backtest J+1 | Marge batterie = valorisation de son planning comme produit linéaire |
-| 7. Archivage | Position, K, résultats et contexte de calcul | Relecture et reprice à l'identique |
+1. **Données** : synchronise power-hpfc avec GitHub (`git pull --ff-only`, refus si `data/` est modifié
+   localement), charge la dernière courbe, vérifie qu'elle reproduit tous les settlements de la séance, charge le
+   spot historique.
+2. **Formulaire** : side (sell au client / buy à une contrepartie), settlement (physical delivery / financial
+   swap), product, période, MW, hedging, margin, puis **Price** et **Save pricing**.
 
-## Conventions
+Produits disponibles :
 
-- **Signe** : MW > 0 = achat d'électricité, MW < 0 = vente. Valeur = Σ q · (P − K), du point de vue de l'acheteur.
-- **Grille** : heures UTC de la courbe, pas horaire vérifié ; heures locales Europe/Paris (jours de 23 h et 25 h compris).
-- **Peak** : définition EEX, du lundi au vendredi de 8 h à 20 h, jours fériés inclus. Offpeak = toutes les autres heures.
-- **Prix juste** : moyenne de la courbe pondérée par les volumes (prix d'un future EEX, sans actualisation car les marges sont appelées chaque jour). Non défini pour un produit qui mélange achat et vente.
-- **Prix juste act.** : prix fixe d'un forward OTC payé mensuellement, pondéré par les facteurs d'actualisation.
-- **Paiement** : le 20 du mois suivant la livraison (`PAY_DAY`, convention EFET).
-- **Actualisation** : courbe BCE Svensson, obligations d'État AAA de la zone euro (`G_N_A`), du jour de pricing ; composition continue, décompte ACT/365. La formule est vérifiée contre les taux 1, 5 et 10 ans publiés.
-- **Couverture** : par produit coté, MW Base = MWh offpeak ÷ heures offpeak, MW Peak = MWh peak ÷ heures peak − MW Base. Les positions affichées sont équivalentes au produit ; on couvre en prenant la position opposée.
-- **TBx** : écart entre le prix moyen des x heures les plus chères et des x moins chères d'un jour, sans contrainte de chronologie.
+| Produit | Description |
+|---|---|
+| Bloc | Base, Peak (définition EEX : lundi-vendredi 8h-20h, fériés inclus) ou Offpeak |
+| Profil semaine | Grille 24 heures × 7 jours à cocher, appliquée à toutes les semaines de la période ; un jour férié suit la colonne de son jour de semaine |
+| Produit EEX coté | Reconstruit à l'identique (mois, trimestre, année, Base ou Peak) |
+| Profil heure par heure | CSV `horodatage` (avec fuseau), `mw` (positifs, le sens est choisi dans le formulaire) |
+| Financial swap | N'importe lequel des profils ci-dessus, réglé contre le spot : buy = fixed-price payer, sell = fixed-price receiver |
 
-## Ce que dit la HPFC sur les TBx
+## Construction du prix
 
-Le TBx est convexe en prix : le TBx d'une courbe de prix attendus est un plancher du TBx attendu.
+| Poste | Calcul |
+|---|---|
+| Couverture EEX aux settlements | MW Base et Peak sur chaque produit coté du découpage, aux settlements de la séance |
+| Résidu day-ahead attendu (HPFC) | Surplus revendus et manques achetés en day-ahead, valorisés sur la HPFC (prime de forme) |
+| **= Fair price** | Moyenne de la HPFC pondérée par les volumes |
+| Coût de risque du résidu | Quantile (95 %) du P&L du résidu, mesuré sur l'historique spot (voir ci-dessous) |
+| Frais | `eex_eur_mwh` × MWh couverts + `epex_eur_mwh` × MWh traités en day-ahead |
+| Conversion financier → physique | Livraison physique seulement : `conversion_fin_phys_eur_mwh` × tous les MWh du deal (les futures EEX France sont réglés financièrement) |
+| Coût de financement | Ventes physiques seulement : sourcing payé à J+5, client à J+50 depuis le premier jour livré du mois, taux €STR + spread, ACT/360 |
+| Marge | Règles de `config/marge.yaml`, ou saisie manuelle avec motif obligatoire |
+| **= Offer price** | Fair price + postes (vente au client) ou − postes (achat à une contrepartie) |
 
-Backtest sur 36 jours livrés (du 25/08 au 13/10/2026) : la base de la HPFC de la veille est égale à la base du spot réalisé (144,15 €/MWh de chaque côté). La HPFC capte 91 % du TB1 réalisé, 88 % du TB2 et 86 % du TB4. L'écart restant est la valeur extrinsèque, non valorisée en V1. L'échantillon couvre la fin de l'été et l'automne seulement ; il faut relancer la cellule 6.5 à mesure que l'archive s'allonge.
+### Couverture
 
-## Limites connues de la V1
+Un produit identique à un contrat EEX coté (mêmes heures, MW constants : par exemple un Peak Cal-27 ou un bloc
+Base Q2-27) se couvre par ce contrat lui-même : un seul contrat, prix juste = son settlement, rien en day-ahead,
+coût de risque nul ; aucune stratégie n'est proposée. Les stratégies ne servent qu'aux produits profilés :
 
-- Les jours restants du mois en cours n'ont pas de produit mois / trimestre / an coté : ils sont signalés comme non couvrables.
-- La batterie est valorisée en valeur intrinsèque seulement, à un cycle par jour, sans contrainte de chronologie ni d'usure : c'est un plancher, pas un prix de tolling.
-- Le risque de forme est mesuré en valeur (prime de forme), pas en distribution : il faudrait un modèle de volatilité.
+Le découpage le plus fin en produits cotés à la fois en Base et en Peak : les mois si les trois mois du
+trimestre sont cotés, sinon le trimestre, sinon l'année. Sur chaque produit, MW Base = MWh offpeak ÷ heures
+offpeak et MW Peak = MWh peak ÷ heures peak − MW Base : le résidu a un volume nul sur chaque bloc.
+Trois stratégies de hedging sont évaluées à chaque pricing : `Base+Peak monthly` (mois cotés, sinon trimestre, sinon
+année), `Base+Peak quarterly` (trimestre, sinon année) et `Base only monthly`. En `auto` (défaut), le pricer retient
+celle qui laisse le moins de MWh à revendre ou acheter en day-ahead (exposition minimale au court terme) ; à
+égalité, le coût de risque le plus bas, puis le moins de contrats EEX.
+Les jours restants du mois en cours n'ont pas de produit mois / trimestre / an : ils restent dans le résidu.
+
+### Coût de risque du résidu
+
+Pour chaque mois livré, le résidu est résumé par sa semaine type (MW moyen par jour de semaine × heure). Cette
+semaine type est rejouée sur chaque mois historique de la même saison (même mois calendaire ± `fenetre_mois`,
+depuis `historique_debut`), recentrée sur un volume nul par bloc couvert, valorisée au spot réalisé, rapportée au
+prix moyen du mois historique puis remise au niveau forward du mois livré. Coût = z(confiance) × σ du P&L total,
+avec une corrélation uniforme `correlation_mois` entre mois (0 = indépendants). Les tableaux du pricing donnent
+σ, moyenne, pire et meilleur cas et le nombre d'échantillons de chaque mois.
+
+Hypothèses : P&L de loi normale pour le quantile ; corrélation uniforme entre mois. Non mesuré : le risque de
+niveau d'un mois à l'intérieur d'un trimestre ou d'une année couverts en bloc, et le risque de niveau des volumes
+sourcés en day-ahead sans couverture possible (mois en cours) : il faudrait des prix forward historiques, l'archive
+des settlements ne remonte qu'au 24/08/2026. Le résultat affiche un avertissement dans ces deux cas.
+
+## Archivage
+
+« Save pricing » écrit `pricings/<date de pricing>/<libellé>/` : position heure par heure, construction du
+prix, couverture, risque par mois et échantillons, financement, comparaison des stratégies, et `pricing.json`
+(résultats, paramètres utilisés avec l'empreinte des fichiers de configuration, commits de power-hpfc et de
+pricer). Un pricing existant n'est jamais écrasé.
+
+## Organisation du code
+
+| Module | Rôle |
+|---|---|
+| `market.py` | Chargement de la séance (courbe, settlements, spot), contrôles, grille horaire |
+| `products.py` | Produits et constructeurs (bloc, grille semaine, EEX, CSV, swap) |
+| `valuation.py` | Prix juste, valeur face à K, décomposition par période et par bloc |
+| `hedging.py` | Découpage coté, stratégies de couverture, résidu |
+| `risk.py` | Coût de risque du résidu sur l'historique spot |
+| `rates.py` | €STR BCE |
+| `settings.py` | Paramètres et politique de marge |
+| `quote.py` | Construction du prix |
+| `tbx.py` | TBx, batterie en valeur intrinsèque, backtest HPFC / spot |
+| `archive.py` | Archivage des pricings |
+| `ui.py` | Formulaire Jupyter (ipywidgets) |
 
 ## Pistes d'amélioration
 
-1. **Fourniture sur courbe de consommation client** : profils types Enedis (à vérifier : disponibilité et format) ou vraie courbe de charge du client, via `custom`.
-2. **Couverture du mois en cours** avec les semaines, week-ends et jours EEX cotés.
-3. **Batterie avec chronologie** : optimisation linéaire (état de charge, charge avant décharge, plusieurs cycles, usure).
-4. **V2 : produits optionnels** : volatilité historique (à partir de l'archive spot et des settlements), Black-76, caps / floors / collars asiatiques, contrats à clics ; vérifier si EEX publie des options France.
-5. **V3 : flexibilité de volume** : swing, take-or-pay.
-6. **TBx en valeur extrinsèque** à partir d'un modèle de prix spot.
-7. **PPA** : achat ou vente, pay-as-produced ou baseload, profils de production en trois niveaux (national ENTSO-E, site PVGIS / Open-Meteo, actif réel), GO, prix négatifs.
-8. **Passage du notebook en paquet** `pricer` testé (pytest), sur le modèle de `power-hpfc`.
+1. **MW différents selon les heures** dans la grille semaine (aujourd'hui une case cochée = la même puissance).
+2. **Grilles saisonnières ou mensuelles** (aujourd'hui une seule semaine type pour toute la période).
+3. **Risque de niveau** : mois dans trimestre / année, et volumes du mois en cours sans couverture, quand l'archive
+   des settlements sera assez longue pour comparer spot réalisé et forward.
+4. **Couverture du mois en cours** avec les semaines, week-ends et jours EEX cotés.
+5. **Pas de 15 minutes** : le day-ahead est au quart d'heure depuis le 01/10/2025, le risque est mesuré à l'heure.
+6. **Fourniture sur courbe de consommation client** : profils types Enedis (à vérifier) ou courbe de charge réelle,
+   avec le risque de volume ; jours fériés traités comme des dimanches pour ces profils.
+7. **Batterie avec chronologie** : optimisation linéaire (état de charge, plusieurs cycles, usure).
+8. **V2 : options** (call, put, cap, floor, collar, clics) : vérifier si l'API EEX publie des settlements d'options
+   France, sinon volatilité historique sur un historique suffisant ; Black-76.
+9. **V3 : flexibilité de volume** (swing, take-or-pay).
+10. **PPA** : achat ou vente, pay-as-produced ou baseload, profils de production (national ENTSO-E, site
+    PVGIS / Open-Meteo, actif réel), GO, prix négatifs.
+11. **Plateforme Streamlit unique** (HPFC, settlements et GO, pricer, PPA) à la place de l'application HPFC
+    actuelle : le formulaire devient une page, la grille semaine un tableau éditable à cases à cocher.

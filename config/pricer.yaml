@@ -1,0 +1,25 @@
+# Paramètres du pricer. Un champ à null qui est nécessaire au calcul arrête le pricing avec la liste
+# des champs à renseigner : aucune valeur n'est supposée à ta place.
+
+paiements:                  # comptés depuis le premier jour livré de chaque mois
+  sourcing_jours: 5         # le sourcing marché est payé à J+5
+  client_jours: 50          # le client paie à J+50
+  base_jours: 360           # convention monétaire de l'€STR (ACT/360)
+
+financement:                # ventes physiques uniquement : taux = €STR du jour + spread
+  spread_bp: 115           # À RENSEIGNER : ton coût de financement au-dessus de l'€STR, en points de base
+
+frais:                      # EUR par MWh traité
+  eex_eur_mwh: 0.0125         # À RENSEIGNER : frais de négociation + compensation EEX (voir la price list EEX)
+  epex_eur_mwh: 0.015       # À RENSEIGNER : frais day-ahead (EPEX SPOT ou ton intermédiaire)
+  conversion_fin_phys_eur_mwh: 0.095   # conversion financier → physique, sur tous les MWh physiques
+
+risque:                     # coût de risque du résidu de couverture, sur l'historique spot day-ahead
+  confiance: 0.95
+  fenetre_mois: 1           # mois historiques comparables : même mois calendaire ± 1
+  correlation_mois: 0.0     # corrélation supposée entre les P&L de deux mois livrés (0 = indépendants)
+  historique_debut: 2019-01-01
+
+couverture:
+  strategie: "auto"   # base+peak fin, base+peak trimestres, base seule fin
+  

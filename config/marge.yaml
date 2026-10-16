@@ -1,0 +1,12 @@
+# Politique de marge par défaut (règles). Une marge manuelle peut la remplacer, avec un motif obligatoire
+# enregistré dans l'archive du pricing.
+#
+# marge = max( volume × (base + durée × années au-delà de la première) + forme % × |prime de forme| ,
+#              plancher )
+#
+# À RENSEIGNER : ce sont tes paramètres commerciaux, aucune valeur n'est mise par défaut.
+
+base_eur_mwh: 0           # marge commerciale de base, EUR/MWh
+forme_pct: 10             # % de la valeur absolue de la prime de forme (résidu day-ahead attendu)
+duree_eur_mwh_par_an: 0   # EUR/MWh par année de livraison au-delà de la première
+plancher_eur: 150         # marge minimum par deal, EUR
