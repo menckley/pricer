@@ -1,0 +1,152 @@
+{
+ "id": "20261017T090014Z_sell-1-mw-base-cal-27",
+ "priced_at_utc": "2026-10-17T09:00:14+00:00",
+ "label": "Sell 1 MW Base Cal-27",
+ "product": {
+  "name": "Sell 1 MW Base Cal-27",
+  "spec": {
+   "type": "eex",
+   "contract": "Cal-27",
+   "profile": "Base",
+   "mw": 1.0,
+   "side": "sell"
+  },
+  "physical": true,
+  "side": "sell",
+  "delivery_start": "2027-01-01",
+  "delivery_end": "2027-12-31",
+  "hours": 8760,
+  "volume_mwh": 8760.0
+ },
+ "fair_price": 107.77,
+ "offer_price": 108.37823919554785,
+ "price_build_up": [
+  {
+   "item": "EEX hedge at settlement",
+   "€": 944065.2,
+   "€/MWh": 107.77
+  },
+  {
+   "item": "Day-ahead residual at HPFC (shape premium)",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "Settlement rounding",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "= Fair price",
+   "€": 944065.2,
+   "€/MWh": 107.77
+  },
+  {
+   "item": "+ Residual risk cost (95%)",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "+ Day-ahead deviation premium (persistence proxy (conservative))",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "+ EEX and day-ahead fees",
+   "€": 109.5,
+   "€/MWh": 0.0125
+  },
+  {
+   "item": "+ Financial-to-physical conversion",
+   "€": 832.2,
+   "€/MWh": 0.095
+  },
+  {
+   "item": "+ Liquidity premium",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "+ Funding cost",
+   "€": 4236.4753529992,
+   "€/MWh": 0.4836159079
+  },
+  {
+   "item": "+ Margin (rules)",
+   "€": 150.0,
+   "€/MWh": 0.0171232877
+  },
+  {
+   "item": "= Offer price",
+   "€": 949393.3753529992,
+   "€/MWh": 108.3782391955
+  }
+ ],
+ "hedging": "Listed EEX contract",
+ "hedge": [
+  {
+   "EEX contract": "Base Cal-27",
+   "start": "2027-01-01T00:00:00.000",
+   "end": "2027-12-31T00:00:00.000",
+   "MW": -1.0,
+   "settlement": 107.77,
+   "MWh": -8760.0,
+   "hedge value €": -944065.2
+  }
+ ],
+ "strategies": [],
+ "risk": {
+  "cost_eur": 0.0,
+  "sigma_eur": 0.0,
+  "confidence": 0.95,
+  "by_month": []
+ },
+ "deviation": {
+  "cost_eur": 0.0,
+  "sigma_eur": 0.0,
+  "method": "persistence proxy (conservative)",
+  "by_month": []
+ },
+ "margin": {
+  "eur": 150,
+  "rule": "rules",
+  "base + tenor €": 0.0,
+  "shape €": 0.0,
+  "floor €": 150,
+  "floor applied": true
+ },
+ "warnings": [],
+ "context": {
+  "market": "FR",
+  "pricing date": "2026-10-15",
+  "strategy requested": "auto",
+  "strategy selected": "Listed EEX contract",
+  "spot history": "2019-01-01 → 2026-09-30",
+  "confidence": 0.95,
+  "seasonal window ± months": 1,
+  "month correlation": 0.0,
+  "EEX fee €/MWh": 0.0125,
+  "day-ahead fee €/MWh": 0.015,
+  "fin-to-phys conversion €/MWh": 0.095,
+  "liquidity threshold MW": 2,
+  "liquidity €/MWh per MW": 0.15,
+  "sourcing paid D+": 5,
+  "client pays D+": 50,
+  "day count": 360,
+  "€STR date": "2026-10-15",
+  "€STR %": 2.44,
+  "spread bp": 115,
+  "funding rate %": 3.59,
+  "deviation method": null,
+  "deviation lookback days": null,
+  "deviation excluded periods": null,
+  "pricer config": "e4fc8d279c76",
+  "margin config": "d7cc02133f49"
+ },
+ "curve": {
+  "pricing_date": "2026-10-15",
+  "method": "E",
+  "code_version": "4cb0a71e3942327b49f77fc2e4fd6e24706ee02b"
+ },
+ "pricer_version": "0.5.0"
+}
