@@ -119,6 +119,14 @@ réintégrer. Tableaux : déviation par mois dans le résultat, RMSE par horizon
 > mesurés (soit environ 1 an d'archive pour l'horizon 1 mois, 2 ans pour 12 mois). En attendant, la prime reste
 > étiquetée « persistence proxy (conservative) ».
 
+## Application en ligne
+
+Le pricer est utilisé par l'application Streamlit du dépôt `power-hpfc` (page d'accueil **Pricer**, page
+**Pricing history**). L'application télécharge ce dépôt avec le secret `PRICER_TOKEN` (jeton *fine-grained* limité à
+`menckley/pricer`, **Contents : Read and write** : lecture du code, écriture du journal) et recharge le code moins de
+5 minutes après un push qui modifie `src/` ou `config/`. Un 403 « Resource not accessible by personal access token »
+à l'archivage = jeton en lecture seule.
+
 ## Archivage et journal des pricings
 
 - **Journal sur GitHub (automatique, dans l'application Streamlit)** : chaque clic sur **Price** ajoute, en un seul
@@ -150,21 +158,123 @@ L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de 
 | `journal.py` | Journal léger des pricings sur GitHub (un commit par pricing) |
 | `ui.py` | Formulaire Jupyter (ipywidgets) |
 
-## Pistes d'amélioration
+## Limites connues (à garder en tête en lisant un prix)
 
-1. **MW différents selon les heures** dans la grille semaine (aujourd'hui une case cochée = la même puissance).
-2. **Grilles saisonnières ou mensuelles** (aujourd'hui une seule semaine type pour toute la période).
-3. **Risque de niveau** : mois dans trimestre / année quand l'archive des settlements sera assez longue ; prime de
-   déviation mesurée sur les HPFC archivées à la place du proxy de persistance (voir plus haut).
-4. **Couverture du mois en cours** avec les semaines, week-ends et jours EEX cotés.
-5. **Pas de 15 minutes** : le day-ahead est au quart d'heure depuis le 01/10/2025, le risque est mesuré à l'heure.
-6. **Fourniture sur courbe de consommation client** : profils types Enedis (à vérifier) ou courbe de charge réelle,
-   avec le risque de volume ; jours fériés traités comme des dimanches pour ces profils.
-7. **Batterie avec chronologie** : optimisation linéaire (état de charge, plusieurs cycles, usure).
-8. **V2 : options** (call, put, cap, floor, collar, clics) : vérifier si l'API EEX publie des settlements d'options
-   France, sinon volatilité historique sur un historique suffisant ; Black-76.
-9. **V3 : flexibilité de volume** (swing, take-or-pay).
-10. **PPA** : achat ou vente, pay-as-produced ou baseload, profils de production (national ENTSO-E, site
-    PVGIS / Open-Meteo, actif réel), GO, prix négatifs.
-11. **Plateforme Streamlit unique** (HPFC, settlements et GO, pricer, PPA) à la place de l'application HPFC
-    actuelle : le formulaire devient une page, la grille semaine un tableau éditable à cases à cocher.
+1. **Prime de déviation = proxy de persistance** : prévision naïve, donc prime surestimée (prudent). À remplacer par
+   l'erreur mesurée des HPFC archivées (voir « Prime de déviation » et la feuille de route, A1).
+2. **Risque de niveau d'un mois dans un trimestre ou une année couverts en bloc non mesuré** (avertissement affiché) :
+   pas d'historique forward gratuit, l'archive des settlements commence le 24/08/2026.
+3. **Mois en cours** : aucun produit mois / trimestre / an ; les Day, Weekend et Week EEX cotés ne sont pas encore
+   utilisés pour le couvrir (tout passe en day-ahead, avec la prime de déviation à l'horizon 0).
+4. **Risque de forme en semaine type** : le résidu est résumé par une semaine type par mois ; P&L supposé normal
+   pour le quantile ; corrélation entre mois = paramètre, pas une estimation.
+5. **Pas horaire** alors que le day-ahead est au quart d'heure depuis le 01/10/2025.
+6. **Financial swap** : des frais day-ahead sont comptés sur le résidu comme pour un deal physique, alors qu'un swap
+   réglé contre le spot ne demande aucun ordre day-ahead. À trancher (garder par prudence ou retirer pour les swaps).
+7. **Paramètres utilisateur** (frais, spread, liquidité, marge) : saisis à la main, non calibrés sur des données.
+8. **Une seule semaine type** pour toute la période et **une case cochée = une même puissance**.
+9. **Coûts de fourniture au client final non inclus** : capacité, CEE, acheminement (TURPE), taxes ; le prix est un
+   prix « énergie de gros ».
+10. **Pas de coût de marge (collatéral) EEX** : l'appel de marge initial et les variations sur la couverture ont un
+    coût de financement non compté.
+
+## Feuille de route
+
+Ordre indicatif : A (fiabiliser ce qui existe) avant B et C (nouveaux produits), D et E en parallèle.
+
+### A. Fiabiliser le pricing actuel
+
+1. **Prime de déviation mesurée** : lire `data/accuracy/market=FR/daily.parquet` de power-hpfc, regrouper l'erreur
+   de niveau (Peak, Offpeak) par horizon en mois, et basculer horizon par horizon dès 12 mois livrés distincts mesurés ;
+   garder le proxy pour les horizons pas encore mesurables et afficher la source utilisée.
+2. **Risque de niveau mois / trimestre / an** : quand l'archive des settlements couvrira au moins un an, mesurer
+   l'écart historique entre un mois et son trimestre (ou son année) pour chiffrer la couverture trimestrielle.
+3. **Couverture du mois en cours** par les Day, Weekend et Week EEX (déjà archivés par power-hpfc).
+4. **Corrélation entre mois estimée** sur l'historique des P&L simulés au lieu d'un paramètre.
+5. **Quart d'heure** : risque et position au pas de 15 minutes depuis le 01/10/2025.
+6. **Coût du collatéral EEX** : marge initiale (paramètres de marge EEX / ECC publiés, à vérifier) × taux × durée,
+   et coût des appels de marge de variation.
+7. **Liquidité calibrée** : seuil et pente à partir des volumes et de l'open interest EEX par contrat (données
+   publiques à vérifier) plutôt qu'en paramètres libres.
+8. **Swaps** : trancher la question des frais day-ahead (limite 6).
+9. **Marge** : grille par type de client et par produit ; marge minimum en €/MWh en plus du plancher en €.
+10. **Pricing sur une date passée** (la courbe d'une séance archivée) pour rejouer un pricing ou comparer deux dates.
+
+### B. Produits
+
+**Produits conventionnels (à terme, fixes)**
+1. Week, Weekend, Day EEX comme produits cotés (prix = settlement, couverture par eux-mêmes).
+2. Saisonniers (été / hiver), blocs multi-heures non standards (ex. 7h-23h), profils par mois.
+3. Grille semaine avec **MW différents par case**, et **grilles saisonnières / mensuelles**.
+4. Produits indexés : prix = moyenne spot du mois + spread, ou % fixe / % indexé (le pricer donne le spread juste).
+5. **Clics / tranches** : fixation progressive du prix d'un contrat annuel en plusieurs clics, chacun pricé à la
+   date du clic ; historique des clics dans le journal.
+
+**Fourniture sur courbe de consommation**
+6. Profils types Enedis (à vérifier : profils publiés par catégorie) ou courbe de charge réelle du client (CSV) ;
+   jours fériés traités comme des dimanches pour ces profils.
+7. **Risque de volume** : écart entre courbe prévue et réalisée (température, activité), corrélé au prix ; coût
+   de l'écart × prix de déséquilibre (RTE publie les prix de règlement des écarts).
+8. Coûts de fourniture (limite 9) en lignes séparées, pour passer d'un prix de gros à un prix client.
+
+**Options (V2)**
+9. **Call, put, cap, floor, collar** sur mois / trimestre / an : Black-76 sur le forward (le settlement du contrat),
+   avec greeks (delta, gamma, vega, theta). Volatilité : settlements d'options EEX France si l'API en publie
+   (à vérifier ; les options sur le Phelix allemand sont plus liquides), sinon volatilité historique des
+   settlements (archive trop courte aujourd'hui) ou du spot, en le disant.
+10. **Caps / floors horaires** (option sur chaque heure livrée) : simulation de prix horaires (C1) ; un cap horaire
+    vaut bien plus qu'un cap sur la moyenne mensuelle.
+11. **Combinaison de scénarios avec options** : comparer, pour un même deal, couverture par futures, par futures +
+    options (ex. vente à prix fixe avec cap client, couverte par un call), ou day-ahead seul ; même règle « le moins
+    cher gagne », avec le coût de la prime et du delta-hedging.
+12. Options sur spread (spark / clean spark spread) : à terme, si des données gaz et CO2 gratuites sont intégrées.
+
+**TBx et stockage**
+13. TBx (TB1, TB2, TB4 : écart entre les N heures les plus chères et les N moins chères du jour) : valeur
+    intrinsèque déjà dans `tbx.py` ; ajouter la **valeur extrinsèque** (simulation, C1), le backtest HPFC / spot sur
+    l'archive et un produit « TBx » pricable dans l'application.
+14. **Batterie avec chronologie** : optimisation linéaire (état de charge, rendement, puissance / énergie, cycles par
+    jour, usure), sur la HPFC puis sur des scénarios simulés ; ajout éventuel des services système (FCR, aFRR :
+    données RTE à vérifier).
+
+**Flexibilité et structurés (V3)**
+15. **Swing / take-or-pay** : volume minimum et maximum par jour, mois et an, pénalités ; valorisation par
+    programmation dynamique ou Monte-Carlo à moindres carrés (Longstaff-Schwartz) sur des trajectoires simulées (C1).
+16. **Tolling / virtual power plant** : option de production (centrale, coût marginal) = série d'options sur spread.
+17. **PPA** : achat ou vente, pay-as-produced ou baseload, profil de production (national ENTSO-E, site PVGIS /
+    Open-Meteo, actif réel), effet de cannibalisation solaire, prix négatifs (heures sans paiement), garanties
+    d'origine (GO : données du dépôt `settlements-eex`), risque de profil et de volume.
+18. Cadre post-ARENH (à vérifier : mécanisme en vigueur depuis le 01/01/2026) pour la fourniture de clients finaux.
+
+### C. Modèle de prix
+
+1. **Simulation de prix horaires** cohérente avec la HPFC : la HPFC comme moyenne, chocs de niveau mensuels
+   (retour à la moyenne), chocs de forme tirés de l'historique (bootstrap des résidus), pics et prix négatifs ;
+   calibrée sur le spot ENTSO-E (crise 2021-2023 exclue ou traitée à part). Indispensable aux options horaires, TBx
+   extrinsèques, swing et batterie.
+2. Validation de la simulation : la moyenne simulée doit reproduire la HPFC et les settlements, la dispersion doit
+   reproduire l'erreur mesurée par power-hpfc.
+
+### D. Gestion des risques et portefeuille
+
+1. **Mark-to-market du journal** : réévaluer chaque pricing archivé (ou chaque deal conclu) sur la HPFC du jour,
+   P&L et P&L explain (niveau, forme, temps).
+2. **Statut des pricings** dans le journal : envoyé, gagné, perdu, conclu ; taux de transformation par produit.
+3. Position agrégée du portefeuille par mois et par bloc, couverture à faire, VaR / quantiles sur l'historique.
+4. **Risque de contrepartie** pour les deals longs (CVA simplifiée : probabilité de défaut × exposition future).
+
+### E. Application et outillage
+
+1. **Plateforme unique** : intégrer `settlements-eex` (settlements, GO) à l'application, puis les PPA.
+2. **Fiche de proposition** (term sheet PDF) générée depuis un pricing.
+3. Tests du pricer lancés par GitHub Actions à chaque push (comme power-hpfc).
+4. Contrôle d'accès de l'application (Streamlit : application privée, viewers invités).
+5. Notebook `pricer.ipynb` à garder aligné sur l'application (mêmes produits et scénarios).
+
+## Reprise après une pause
+
+- `git pull --rebase` dans `pricer` avant toute modification : l'application ajoute des commits dans `pricings/`.
+- Vérifier que les paramètres de `config/pricer.yaml` et `config/marge.yaml` sont renseignés (la page Pricer liste
+  ceux qui manquent), dont la section `deviation`.
+- Vérifier que le jeton `PRICER_TOKEN` n'a pas expiré (GitHub → Settings → Developer settings → Fine-grained tokens).
+- Regarder la page **HPFC accuracy** : nombre de mois livrés par horizon, pour savoir quand faire A1.
