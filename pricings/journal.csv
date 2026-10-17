@@ -1,3 +1,4 @@
 id,priced_at_utc,label,product,side,settlement,delivery_start,delivery_end,volume_mwh,fair_price,offer_price,margin_eur,margin_rule,risk_cost_eur,hedging,pricing_date,pricer_version,folder
 20261017T090014Z_sell-1-mw-base-cal-27,2026-10-17T09:00:14+00:00,Sell 1 MW Base Cal-27,Sell 1 MW Base Cal-27,sell,physical,2027-01-01,2027-12-31,8760.0,107.77,108.3782,150,rules,0.0,Listed EEX contract,2026-10-15,0.5.0,pricings/2026/10/20261017T090014Z_sell-1-mw-base-cal-27.json
 20261017T092008Z_proxelia,2026-10-17T09:20:08+00:00,Proxelia,Sell 3 MW Base D 16/10/26,sell,physical,2026-10-16,2026-10-16,72.0,212.0,215.2922,150,rules,0.0,Listed EEX contract,2026-10-15,0.5.0,pricings/2026/10/20261017T092008Z_proxelia.json
+20261017T092021Z_proxelia,2026-10-17T09:20:21+00:00,Proxelia,Sell 3 MW Base Cal-29,sell,physical,2029-01-01,2029-12-31,26280.0,59.88,60.4119,150,rules,0.0,Listed EEX contract,2026-10-15,0.5.0,pricings/2026/10/20261017T092021Z_proxelia.json
