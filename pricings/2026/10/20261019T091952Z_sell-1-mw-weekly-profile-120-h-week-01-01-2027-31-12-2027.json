@@ -1,0 +1,380 @@
+{
+ "id": "20261019T091952Z_sell-1-mw-weekly-profile-120-h-week-01-01-2027-31-12-2027",
+ "priced_at_utc": "2026-10-19T09:19:52+00:00",
+ "label": "Sell 1 MW weekly profile (120 h/week) 01/01/2027-31/12/2027",
+ "product": {
+  "name": "Sell 1 MW weekly profile (120 h/week) 01/01/2027-31/12/2027",
+  "spec": {
+   "type": "weekly",
+   "start": "2027-01-01",
+   "end": "2027-12-31",
+   "mw": 1.0,
+   "side": "sell",
+   "grid_by_weekday_hours_0_23": {
+    "lundi": "111111111111111111111111",
+    "mardi": "111111111111111111111111",
+    "mercredi": "111111111111111111111111",
+    "jeudi": "111111111111111111111111",
+    "vendredi": "111111111111111111111111",
+    "samedi": "000000000000000000000000",
+    "dimanche": "000000000000000000000000"
+   }
+  },
+  "physical": true,
+  "side": "sell",
+  "delivery_start": "2027-01-01",
+  "delivery_end": "2027-12-31",
+  "hours": 6264,
+  "volume_mwh": 6264.0
+ },
+ "fair_price": 118.21908013508977,
+ "offer_price": 121.88332670792457,
+ "price_build_up": [
+  {
+   "item": "EEX hedge at settlement",
+   "€": 685051.6799999999,
+   "€/MWh": 109.3632950192
+  },
+  {
+   "item": "Day-ahead residual at HPFC (shape premium)",
+   "€": 55472.6379659548,
+   "€/MWh": 8.8557851159
+  },
+  {
+   "item": "Settlement rounding",
+   "€": 2.475e-07,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "= Fair price",
+   "€": 740524.3179662023,
+   "€/MWh": 118.2190801351
+  },
+  {
+   "item": "+ Residual risk cost (95%)",
+   "€": 14632.6160061883,
+   "€/MWh": 2.3359859525
+  },
+  {
+   "item": "+ Day-ahead deviation premium (persistence proxy (conservative))",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "+ EEX and day-ahead fees",
+   "€": 131.7947087075,
+   "€/MWh": 0.0210400237
+  },
+  {
+   "item": "+ Financial-to-physical conversion",
+   "€": 595.08,
+   "€/MWh": 0.095
+  },
+  {
+   "item": "+ Liquidity premium",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "+ Funding cost",
+   "€": 3324.0285322708,
+   "€/MWh": 0.530655896
+  },
+  {
+   "item": "+ Margin (rules)",
+   "€": 4269.3212850706,
+   "€/MWh": 0.6815647007
+  },
+  {
+   "item": "= Offer price",
+   "€": 763477.1584984395,
+   "€/MWh": 121.8833267079
+  }
+ ],
+ "hedging": "Base only monthly",
+ "hedge": [
+  {
+   "EEX contract": "M01-27",
+   "start": "2027-01-01T00:00:00.000",
+   "end": "2027-01-31T00:00:00.000",
+   "Base MW": -0.6774193548,
+   "Peak MW": 0.0,
+   "Base settl.": 186.87,
+   "Peak settl.": 226.19,
+   "Base MWh": -504.0,
+   "Peak MWh": 0.0,
+   "hedge value €": -94182.48
+  },
+  {
+   "EEX contract": "M02-27",
+   "start": "2027-02-01T00:00:00.000",
+   "end": "2027-02-28T00:00:00.000",
+   "Base MW": -0.7142857143,
+   "Peak MW": 0.0,
+   "Base settl.": 179.08,
+   "Peak settl.": 214.54,
+   "Base MWh": -480.0,
+   "Peak MWh": 0.0,
+   "hedge value €": -85958.4
+  },
+  {
+   "EEX contract": "M03-27",
+   "start": "2027-03-01T00:00:00.000",
+   "end": "2027-03-31T00:00:00.000",
+   "Base MW": -0.7429340511,
+   "Peak MW": 0.0,
+   "Base settl.": 143.56,
+   "Peak settl.": 138.79,
+   "Base MWh": -552.0,
+   "Peak MWh": 0.0,
+   "hedge value €": -79245.12
+  },
+  {
+   "EEX contract": "Q2-27",
+   "start": "2027-04-01T00:00:00.000",
+   "end": "2027-06-30T00:00:00.000",
+   "Base MW": -0.7142857143,
+   "Peak MW": 0.0,
+   "Base settl.": 70.73,
+   "Peak settl.": 58.51,
+   "Base MWh": -1560.0,
+   "Peak MWh": 0.0,
+   "hedge value €": -110338.8
+  },
+  {
+   "EEX contract": "Q3-27",
+   "start": "2027-07-01T00:00:00.000",
+   "end": "2027-09-30T00:00:00.000",
+   "Base MW": -0.7173913043,
+   "Peak MW": 0.0,
+   "Base settl.": 87.07,
+   "Peak settl.": 74.76,
+   "Base MWh": -1584.0,
+   "Peak MWh": 0.0,
+   "hedge value €": -137918.88
+  },
+  {
+   "EEX contract": "Q4-27",
+   "start": "2027-10-01T00:00:00.000",
+   "end": "2027-12-31T00:00:00.000",
+   "Base MW": -0.7170665459,
+   "Peak MW": 0.0,
+   "Base settl.": 112.0,
+   "Peak settl.": 147.76,
+   "Base MWh": -1584.0,
+   "Peak MWh": 0.0,
+   "hedge value €": -177408.0
+  }
+ ],
+ "strategies": [
+  {
+   "strategy": "Base+Peak monthly",
+   "EEX contracts": 6,
+   "EEX hedged MWh": 6264.0,
+   "day-ahead MWh": 2774.9778164959,
+   "max MW per contract": 1.0,
+   "risk cost €": 16270.743968036,
+   "deviation premium €": 0.0,
+   "fees + conversion €": 715.0046672474,
+   "liquidity €": 0.0,
+   "margin €": 4269.3212850706,
+   "offer price €/MWh": 122.142946427,
+   "selected": false
+  },
+  {
+   "strategy": "Base+Peak quarterly",
+   "EEX contracts": 4,
+   "EEX hedged MWh": 6264.0,
+   "day-ahead MWh": 2777.9688580837,
+   "max MW per contract": 1.0,
+   "risk cost €": 16270.743968036,
+   "deviation premium €": 0.0,
+   "fees + conversion €": 715.0495328713,
+   "liquidity €": 0.0,
+   "margin €": 4269.3212850706,
+   "offer price €/MWh": 122.1429535895,
+   "selected": false
+  },
+  {
+   "strategy": "Base only monthly",
+   "EEX contracts": 6,
+   "EEX hedged MWh": 6264.0,
+   "day-ahead MWh": 3566.3139138355,
+   "max MW per contract": 0.7429340511,
+   "risk cost €": 14632.6160061883,
+   "deviation premium €": 0.0,
+   "fees + conversion €": 726.8747087075,
+   "liquidity €": 0.0,
+   "margin €": 4269.3212850706,
+   "offer price €/MWh": 121.8833267079,
+   "selected": true
+  },
+  {
+   "strategy": "Full day-ahead",
+   "EEX contracts": 0,
+   "EEX hedged MWh": 0.0,
+   "day-ahead MWh": 6264.0,
+   "max MW per contract": 0.0,
+   "risk cost €": 16270.743968036,
+   "deviation premium €": 1034898.1956735404,
+   "fees + conversion €": 93.96,
+   "liquidity €": 0.0,
+   "margin €": 4269.3212850706,
+   "offer price €/MWh": 287.2574341356,
+   "selected": false
+  }
+ ],
+ "risk": {
+  "cost_eur": 14632.616006188278,
+  "sigma_eur": 8895.998869703673,
+  "confidence": 0.95,
+  "by_month": [
+   {
+    "month": "2027-01",
+    "σ €": 3127.0209147628,
+    "mean €": -5254.0237696087,
+    "samples": 23,
+    "worst €": -11236.8840972649,
+    "best €": -683.3498051
+   },
+   {
+    "month": "2027-02",
+    "σ €": 3545.7091929936,
+    "mean €": -5447.0214212714,
+    "samples": 24,
+    "worst €": -12404.4804942412,
+    "best €": -654.8631834821
+   },
+   {
+    "month": "2027-03",
+    "σ €": 4684.2632258201,
+    "mean €": -5980.37618229,
+    "samples": 24,
+    "worst €": -18827.7879222464,
+    "best €": -1846.960260057
+   },
+   {
+    "month": "2027-04",
+    "σ €": 3069.0898890111,
+    "mean €": -4892.1518933698,
+    "samples": 24,
+    "worst €": -12085.404409549,
+    "best €": -1185.5488155771
+   },
+   {
+    "month": "2027-05",
+    "σ €": 2031.5690034679,
+    "mean €": -3435.6980126068,
+    "samples": 24,
+    "worst €": -8046.221683005,
+    "best €": -741.4603996623
+   },
+   {
+    "month": "2027-06",
+    "σ €": 1699.3831319085,
+    "mean €": -3812.3319746729,
+    "samples": 24,
+    "worst €": -8773.9658759511,
+    "best €": -1655.8322889034
+   },
+   {
+    "month": "2027-07",
+    "σ €": 1918.8812035652,
+    "mean €": -4536.8822503647,
+    "samples": 24,
+    "worst €": -11167.8227482618,
+    "best €": -2228.6312254835
+   },
+   {
+    "month": "2027-08",
+    "σ €": 1648.6380114704,
+    "mean €": -4455.8126081225,
+    "samples": 24,
+    "worst €": -8408.7662099296,
+    "best €": -1750.3678880989
+   },
+   {
+    "month": "2027-09",
+    "σ €": 1342.992593451,
+    "mean €": -4339.5096157793,
+    "samples": 23,
+    "worst €": -7482.1813527059,
+    "best €": -1773.4841216167
+   },
+   {
+    "month": "2027-10",
+    "σ €": 1676.3725875978,
+    "mean €": -4089.6635157363,
+    "samples": 22,
+    "worst €": -8123.1657018222,
+    "best €": -1844.9607746736
+   },
+   {
+    "month": "2027-11",
+    "σ €": 2001.3365403839,
+    "mean €": -4582.5560839488,
+    "samples": 21,
+    "worst €": -9367.8582650103,
+    "best €": -1911.48554833
+   },
+   {
+    "month": "2027-12",
+    "σ €": 1841.8353818972,
+    "mean €": -3574.5113274117,
+    "samples": 22,
+    "worst €": -7155.1839735396,
+    "best €": -448.7817445666
+   }
+  ]
+ },
+ "deviation": {
+  "cost_eur": 0.0,
+  "sigma_eur": 0.0,
+  "method": "persistence proxy (conservative)",
+  "by_month": []
+ },
+ "margin": {
+  "eur": 4269.321285070621,
+  "rule": "rules",
+  "base + tenor €": 0.0,
+  "shape €": 4269.321285070621,
+  "floor €": 150,
+  "floor applied": false
+ },
+ "warnings": [],
+ "context": {
+  "market": "FR",
+  "pricing date": "2026-10-16",
+  "strategy requested": "auto",
+  "strategy selected": "Base only monthly",
+  "spot history": "2019-01-01 → 2026-09-30",
+  "confidence": 0.95,
+  "seasonal window ± months": 1,
+  "month correlation": 0.0,
+  "EEX fee €/MWh": 0.0125,
+  "day-ahead fee €/MWh": 0.015,
+  "fin-to-phys conversion €/MWh": 0.095,
+  "liquidity threshold MW": 2,
+  "liquidity €/MWh per MW": 0.15,
+  "sourcing paid D+": 5,
+  "client pays D+": 50,
+  "day count": 360,
+  "€STR date": "2026-10-16",
+  "€STR %": 2.441,
+  "spread bp": 115,
+  "funding rate %": 3.5909999999999997,
+  "deviation method": "persistence proxy (conservative)",
+  "deviation lookback days": 30,
+  "deviation excluded periods": [
+   "2021-09-01 → 2023-06-30"
+  ],
+  "pricer config": "e4fc8d279c76",
+  "margin config": "d7cc02133f49"
+ },
+ "curve": {
+  "pricing_date": "2026-10-16",
+  "method": "E",
+  "code_version": "2c20bf2941669413d422a2c7c6f0ff17878d1278"
+ },
+ "pricer_version": "0.5.0"
+}
