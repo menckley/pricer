@@ -52,6 +52,7 @@ class Quote:
     warnings: list = field(default_factory=list)
     deviation: DeviationResult | None = None
     deviation_model: DeviationModel | None = None
+    indexation: dict | None = None   # contrat indexé spot (indexation.py) : formule, spread, index par mois
 
 
 def margin_by_rules(s: Settings, volume: float, shape_value: float, years: float) -> Margin:
@@ -199,9 +200,8 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     evaluated, comp = {}, []
     for name, (h, hv, rk, dv) in candidates.items():
         fees = s.eex_fee * hv["EEX hedged MWh"] + s.epex_fee * _da_mwh(hv)
-        # conversion financier → physique : tous les MWh livrés physiquement, sauf en full day-ahead
-        # (l'énergie achetée en day-ahead est déjà physique)
-        conv = s.conversion_fee * V if p.physical and name != FULL_DA else 0.0
+        # conversion financier → physique : tous les MWh livrés physiquement, quel que soit le scénario
+        conv = s.conversion_fee * V if p.physical else 0.0
         mw_max = max_contract_mw(h)
         liq_rate = s.liquidity_eur_mwh_per_mw * max(0.0, mw_max - s.liquidity_threshold_mw)
         liq = liq_rate * hv["EEX hedged MWh"]

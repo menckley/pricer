@@ -98,7 +98,7 @@ def test_full_day_ahead_scenario_in_comparison():
     assert fda["EEX contracts"] == 0 and fda["EEX hedged MWh"] == 0 and fda["liquidity €"] == 0
     assert fda["day-ahead MWh"] == pytest.approx(q.volume)
     assert fda["deviation premium €"] > 0
-    assert fda["fees + conversion €"] == pytest.approx(0.05 * q.volume)      # day-ahead seulement, pas de conversion
+    assert fda["fees + conversion €"] == pytest.approx((0.05 + 0.095) * q.volume)   # day-ahead + conversion
     # même marge dans tous les scénarios : la prime de forme ne dépend pas de la couverture
     assert q.strategies["margin €"].nunique() == 1
     # scénario forcé
@@ -109,7 +109,7 @@ def test_full_day_ahead_scenario_in_comparison():
     parts = qf.lines.drop(index=["= Fair price", "= Offer price"])["€"].sum()
     assert parts == pytest.approx(qf.price * qf.volume)
     assert qf.fair_price == pytest.approx(q.fair_price)
-    assert qf.lines.loc["+ Financial-to-physical conversion", "€"] == 0
+    assert qf.lines.loc["+ Financial-to-physical conversion", "€"] == pytest.approx(0.095 * qf.volume)
     assert qf.price == pytest.approx(fda["offer price €/MWh"])
     assert any("no EEX hedge" in w for w in qf.warnings)
 
@@ -118,7 +118,7 @@ def test_full_day_ahead_wins_when_cheapest():
     """Day-ahead gratuit, EEX très cher : le full day-ahead devient le moins cher et est retenu en auto."""
     m = market()
     s = settings(eex_fee=500.0, epex_fee=0.0)
-    p = weekly(m, date(2026, 11, 1), date(2026, 11, 30), 1, grid_from_hours(range(9, 19), range(5)), "buy")   # pas le Peak coté
+    p = weekly(m, date(2027, 1, 1), date(2027, 1, 31), 1, grid_from_hours(range(9, 19), range(5)), "buy")   # pas le Peak coté
     q = _quote(m, p, s)
     assert q.context["strategy selected"] == FULL_DA
     assert q.strategies.loc[FULL_DA, "offer price €/MWh"] == pytest.approx(q.strategies["offer price €/MWh"].max())

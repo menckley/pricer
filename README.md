@@ -57,7 +57,7 @@ Produits disponibles :
 | Prime de déviation day-ahead | Risque de niveau des MWh traités en day-ahead sans couverture EEX (tout le volume en full day-ahead, le mois en cours sinon) : proxy de persistance, voir ci-dessous |
 | Frais | `eex_eur_mwh` × MWh couverts + `epex_eur_mwh` × MWh traités en day-ahead |
 | Prime de liquidité | `eur_mwh_par_mw` × (MW max traités sur un contrat − `seuil_mw`), sur les MWh couverts EEX |
-| Conversion financier → physique | Livraison physique seulement : `conversion_fin_phys_eur_mwh` × tous les MWh du deal (les futures EEX France sont réglés financièrement) ; aucune en full day-ahead (le day-ahead est déjà physique) |
+| Conversion financier → physique | Livraison physique seulement : `conversion_fin_phys_eur_mwh` × tous les MWh du deal, quel que soit le scénario (full day-ahead et contrats indexés compris) |
 | Coût de financement | Ventes physiques seulement : sourcing payé à J+5, client à J+50 depuis le premier jour livré du mois, taux €STR + spread, ACT/360 |
 | Marge | Règles de `config/marge.yaml`, ou saisie manuelle avec motif obligatoire. Assiette de la part « forme » : prime de forme du produit (valeur à la HPFC − mêmes MWh au prix moyen de leur bloc Peak / Offpeak du mois), identique dans tous les scénarios |
 | **= Offer price** | Fair price + postes (vente au client) ou − postes (achat à une contrepartie) |
@@ -73,8 +73,8 @@ trimestre sont cotés, sinon le trimestre, sinon l'année. Sur chaque produit, M
 offpeak et MW Peak = MWh peak ÷ heures peak − MW Base : le résidu a un volume nul sur chaque bloc.
 Quatre scénarios sont évalués à chaque pricing : `Base+Peak monthly` (mois cotés, sinon trimestre, sinon année),
 `Base+Peak quarterly` (trimestre, sinon année), `Base only monthly` et **`Full day-ahead`** (aucun contrat EEX :
-tout le volume est acheté ou revendu en day-ahead ; frais day-ahead sur tout le volume, ni conversion ni prime de
-liquidité ; risque = forme (même méthode que le résidu) + prime de déviation sur tout le volume). En `auto` (défaut),
+tout le volume est acheté ou revendu en day-ahead ; frais day-ahead et conversion sur tout le volume, pas de prime
+de liquidité ; risque = forme (même méthode que le résidu) + prime de déviation sur tout le volume). En `auto` (défaut),
 le pricer retient le **moins cher** (risque + déviation + frais + conversion + liquidité + marge) ; à égalité, celui
 qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX. Si un horizon du deal n'est pas mesurable
 (historique trop court), le full day-ahead n'est pas évalué et le résultat le signale.
@@ -119,6 +119,31 @@ réintégrer. Tableaux : déviation par mois dans le résultat, RMSE par horizon
 > mesurés (soit environ 1 an d'archive pour l'horizon 1 mois, 2 ans pour 12 mois). En attendant, la prime reste
 > étiquetée « persistence proxy (conservative) ».
 
+## Contrats indexés spot : « EPEX spot ± spread »
+
+Type de prix **EPEX spot indexed** (page Pricer, ou `pricer.indexation.quote_indexed`), livraison physique, sur
+n'importe quel profil (bloc, grille, courbe horaire, contrat EEX).
+
+- **Index du mois** = moyenne du prix day-ahead EPEX sur les heures livrées du mois, pondérée par les MWh de chaque
+  heure, **arrondie au centime supérieur**. Prix facturé du mois = index + spread (vente au client) ou − spread
+  (achat à un producteur) : un seul prix par mois.
+- Chaque heure livrée est achetée (ou revendue) en day-ahead au prix de l'index : pas de couverture EEX, pas de
+  risque de prix ni de forme. Le spread couvre des coûts :
+
+| Composante du spread | Calcul |
+|---|---|
+| Frais day-ahead | `epex_eur_mwh` |
+| Conversion financier → physique | `conversion_fin_phys_eur_mwh` |
+| Financement | ventes : (€STR + spread) × (client_jours − sourcing_jours) / 360 sur la valeur de l'énergie à la HPFC (toute l'énergie est préfinancée) |
+| Arrondi de l'index | achats seulement : l'arrondi au centime supérieur est payé au producteur, compté pour son maximum (0,01 €/MWh) ; pour une vente, le gain d'arrondi n'est pas déduit (prudence) |
+| Marge | section `indexation` de `config/marge.yaml` (base, durée, plancher), ou manuelle avec motif |
+
+- **Spread proposé** = spread exact arrondi au centime supérieur (ex. « EPEX spot + 0,69 €/MWh »). Le « prix tout
+  compris attendu » (index attendu à la HPFC ± spread) est une estimation : le client paie l'index réalisé.
+- Le coût de financement dépend du niveau du spot réalisé : il est estimé à la HPFC (avertissement affiché).
+- Non couvert : écart de volume si le client ne consomme pas le profil contracté (fourniture sur courbe de charge,
+  feuille de route B6-B7) ; swaps indexés (refusés : un swap « spot contre spot + spread » se réduit au spread).
+
 ## Application en ligne
 
 Le pricer est utilisé par l'application Streamlit du dépôt `power-hpfc` (page d'accueil **Pricer**, page
@@ -150,6 +175,7 @@ L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de 
 | `hedging.py` | Découpage coté, stratégies de couverture, résidu |
 | `risk.py` | Coût de risque du résidu sur l'historique spot |
 | `deviation.py` | Prime de déviation day-ahead (proxy de persistance) |
+| `indexation.py` | Contrats indexés spot EPEX : spread juste et index par mois |
 | `rates.py` | €STR BCE |
 | `settings.py` | Paramètres et politique de marge |
 | `quote.py` | Construction du prix |
@@ -206,7 +232,9 @@ Ordre indicatif : A (fiabiliser ce qui existe) avant B et C (nouveaux produits),
 1. Week, Weekend, Day EEX comme produits cotés (prix = settlement, couverture par eux-mêmes).
 2. Saisonniers (été / hiver), blocs multi-heures non standards (ex. 7h-23h), profils par mois.
 3. Grille semaine avec **MW différents par case**, et **grilles saisonnières / mensuelles**.
-4. Produits indexés : prix = moyenne spot du mois + spread, ou % fixe / % indexé (le pricer donne le spread juste).
+4. Produits indexés : **fait pour l'index spot EPEX** (v0.6.0). À ajouter : % fixe / % indexé, cap et floor sur
+   l'index (collar : options), indexation gaz (PEG / TTF) et CO2 (linéaire sur les forwards, puis options sur
+   écart de prix de type Kirk), moyenne de settlements EEX, inflation pour les PPA longs.
 5. **Clics / tranches** : fixation progressive du prix d'un contrat annuel en plusieurs clics, chacun pricé à la
    date du clic ; historique des clics dans le journal.
 
@@ -219,9 +247,13 @@ Ordre indicatif : A (fiabiliser ce qui existe) avant B et C (nouveaux produits),
 
 **Options (V2)**
 9. **Call, put, cap, floor, collar** sur mois / trimestre / an : Black-76 sur le forward (le settlement du contrat),
-   avec greeks (delta, gamma, vega, theta). Volatilité : settlements d'options EEX France si l'API en publie
-   (à vérifier ; les options sur le Phelix allemand sont plus liquides), sinon volatilité historique des
-   settlements (archive trop courte aujourd'hui) ou du spot, en le disant.
+   avec greeks (delta, gamma, vega, theta). Volatilité **recalculée à chaque pricing** sur toutes les séances
+   archivées (fenêtre, nombre de points et intervalle de confiance enregistrés dans le journal), par tranche de délai
+   avant livraison (effet Samuelson). Ordre de préférence : volatilité implicite des settlements d'options EEX
+   France si l'API en publie (à vérifier en premier) ; sinon volatilité historique des settlements (refus sous
+   60 séances par tranche, seuil en config ; erreur d'estimation ≈ σ / √(2n) : ± 9 % à 60 séances, ± 4,5 % à 250),
+   avec EWMA en complément ; en attendant, volatilité d'un modèle à retour à la moyenne (Schwartz-Smith) calibré
+   sur le spot ENTSO-E depuis 2019, étiquetée comme telle. GARCH(1,1) quand l'archive dépassera un an.
 10. **Caps / floors horaires** (option sur chaque heure livrée) : simulation de prix horaires (C1) ; un cap horaire
     vaut bien plus qu'un cap sur la moyenne mensuelle.
 11. **Combinaison de scénarios avec options** : comparer, pour un même deal, couverture par futures, par futures +

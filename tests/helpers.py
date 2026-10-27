@@ -82,6 +82,7 @@ def settings(**over) -> Settings:
                 confidence=0.95, window=1, correlation=0.0, history_start=date(2019, 1, 1),
                 strategy="auto", margin_base=1.0, margin_shape_pct=10.0, margin_per_year=0.5,
                 margin_floor=500.0, deviation_lookback=30, deviation_day_window=7, deviation_min_months=12,
-                deviation_excluded=((date(2021, 9, 1), date(2023, 6, 30)),), full_day_ahead=True)
+                deviation_excluded=((date(2021, 9, 1), date(2023, 6, 30)),), full_day_ahead=True,
+                margin_index_base=0.30, margin_index_per_year=0.05, margin_index_floor=100.0)
     base.update(over)
     return Settings(**base)

@@ -45,6 +45,9 @@ class Settings:
     deviation_min_months: int | None = None        # mois cibles distincts minimum par horizon
     deviation_excluded: tuple | None = None        # périodes exclues [(début, fin), ...]
     full_day_ahead: bool | None = None             # évaluer le scénario full day-ahead
+    margin_index_base: float | None = None         # marge des contrats indexés spot (marge.yaml → indexation)
+    margin_index_per_year: float | None = None
+    margin_index_floor: float | None = None
     hash_pricer: str = ""
     hash_margin: str = ""
 
@@ -54,6 +57,7 @@ class Settings:
         p, h1 = _read(d / "pricer.yaml")
         m, h2 = _read(d / "marge.yaml")
         dev = p.get("deviation") or {}
+        mi = m.get("indexation") or {}
         excl = dev.get("periodes_exclues")
         s = cls(sourcing_days=int(p["paiements"]["sourcing_jours"]), client_days=int(p["paiements"]["client_jours"]),
                 day_count=int(p["paiements"]["base_jours"]), spread_bp=p["financement"]["spread_bp"],
@@ -70,6 +74,8 @@ class Settings:
                 deviation_min_months=dev.get("min_mois_cibles"),
                 deviation_excluded=None if excl is None else tuple((a, b) for a, b in excl),
                 full_day_ahead=dev.get("full_day_ahead"),
+                margin_index_base=mi.get("base_eur_mwh"), margin_index_per_year=mi.get("duree_eur_mwh_par_an"),
+                margin_index_floor=mi.get("plancher_eur"),
                 hash_pricer=h1, hash_margin=h2)
         s.validate()
         return s
@@ -86,7 +92,8 @@ class Settings:
             errors.append("risque : correlation_mois dans [0 ; 1]")
         if self.window < 0 or self.window > 5:
             errors.append("risque : fenetre_mois entre 0 et 5")
-        for name in ("eex_fee", "epex_fee", "conversion_fee", "liquidity_threshold_mw", "liquidity_eur_mwh_per_mw", "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct"):
+        for name in ("eex_fee", "epex_fee", "conversion_fee", "liquidity_threshold_mw", "liquidity_eur_mwh_per_mw", "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct",
+                     "margin_index_base", "margin_index_per_year", "margin_index_floor"):
             v = getattr(self, name)
             if v is not None and float(v) < 0:
                 errors.append(f"{name} négatif")
@@ -100,6 +107,22 @@ class Settings:
             errors.append("deviation : fenetre_jours ≥ 7")
         if errors:
             raise ValueError("paramètres invalides : " + " ; ".join(errors))
+
+    def missing_indexed(self, need_financing: bool, manual_margin: bool) -> list[str]:
+        """Paramètres nécessaires à un contrat indexé spot (pas de couverture EEX ni de risque à mesurer)."""
+        out = []
+        if self.epex_fee is None:
+            out.append("config/pricer.yaml → frais.epex_eur_mwh")
+        if self.conversion_fee is None:
+            out.append("config/pricer.yaml → frais.conversion_fin_phys_eur_mwh")
+        if need_financing and self.spread_bp is None:
+            out.append("config/pricer.yaml → financement.spread_bp")
+        if not manual_margin:
+            for key, v in (("base_eur_mwh", self.margin_index_base), ("duree_eur_mwh_par_an", self.margin_index_per_year),
+                           ("plancher_eur", self.margin_index_floor)):
+                if v is None:
+                    out.append(f"config/marge.yaml → indexation.{key}")
+        return out
 
     def missing(self, need_financing: bool, manual_margin: bool, physical: bool = True,
                 need_deviation: bool = False) -> list[str]:
