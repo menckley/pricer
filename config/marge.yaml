@@ -12,6 +12,6 @@ duree_eur_mwh_par_an: 0   # EUR/MWh par année de livraison au-delà de la premi
 plancher_eur: 150         # marge minimum par deal, EUR
 
 indexation:                  # contrats indexés spot (« EPEX spot + spread »)
-  base_eur_mwh: null         # marge de base, EUR/MWh
-  duree_eur_mwh_par_an: null # EUR/MWh par année au-delà de la première
-  plancher_eur: null         # marge minimum par deal, EUR
+  base_eur_mwh: 0.10         # marge de base, EUR/MWh
+  duree_eur_mwh_par_an: 0.02 # EUR/MWh par année au-delà de la première
+  plancher_eur: 200         # marge minimum par deal, EUR
