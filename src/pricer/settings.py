@@ -48,6 +48,11 @@ class Settings:
     margin_index_base: float | None = None         # marge des contrats indexés spot (marge.yaml → indexation)
     margin_index_per_year: float | None = None
     margin_index_floor: float | None = None
+    option_fee: float | None = None                # pricer.yaml → options : frais EEX par MWh sous-jacent et jambe
+    option_vol_premium_pts: float | None = None    # points de volatilité ajoutés aux options vendues
+    option_min_returns: int | None = None          # variations minimum pour la volatilité historique
+    margin_option_base: float | None = None        # marge.yaml → options
+    margin_option_floor: float | None = None
     hash_pricer: str = ""
     hash_margin: str = ""
 
@@ -58,6 +63,8 @@ class Settings:
         m, h2 = _read(d / "marge.yaml")
         dev = p.get("deviation") or {}
         mi = m.get("indexation") or {}
+        po = p.get("options") or {}
+        mo = m.get("options") or {}
         excl = dev.get("periodes_exclues")
         s = cls(sourcing_days=int(p["paiements"]["sourcing_jours"]), client_days=int(p["paiements"]["client_jours"]),
                 day_count=int(p["paiements"]["base_jours"]), spread_bp=p["financement"]["spread_bp"],
@@ -76,6 +83,9 @@ class Settings:
                 full_day_ahead=dev.get("full_day_ahead"),
                 margin_index_base=mi.get("base_eur_mwh"), margin_index_per_year=mi.get("duree_eur_mwh_par_an"),
                 margin_index_floor=mi.get("plancher_eur"),
+                option_fee=po.get("frais_eur_mwh"), option_vol_premium_pts=po.get("prime_vol_points"),
+                option_min_returns=po.get("min_variations_historique"),
+                margin_option_base=mo.get("base_eur_mwh"), margin_option_floor=mo.get("plancher_eur"),
                 hash_pricer=h1, hash_margin=h2)
         s.validate()
         return s
@@ -93,7 +103,8 @@ class Settings:
         if self.window < 0 or self.window > 5:
             errors.append("risque : fenetre_mois entre 0 et 5")
         for name in ("eex_fee", "epex_fee", "conversion_fee", "liquidity_threshold_mw", "liquidity_eur_mwh_per_mw", "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct",
-                     "margin_index_base", "margin_index_per_year", "margin_index_floor"):
+                     "margin_index_base", "margin_index_per_year", "margin_index_floor",
+                     "option_fee", "option_vol_premium_pts", "margin_option_base", "margin_option_floor"):
             v = getattr(self, name)
             if v is not None and float(v) < 0:
                 errors.append(f"{name} négatif")
@@ -107,6 +118,16 @@ class Settings:
             errors.append("deviation : fenetre_jours ≥ 7")
         if errors:
             raise ValueError("paramètres invalides : " + " ; ".join(errors))
+
+    def missing_option(self, manual_margin: bool) -> list[str]:
+        out = [f"config/pricer.yaml → options.{k}" for k, v in
+               (("frais_eur_mwh", self.option_fee), ("prime_vol_points", self.option_vol_premium_pts),
+                ("min_variations_historique", self.option_min_returns)) if v is None]
+        if not manual_margin:
+            out += [f"config/marge.yaml → options.{k}" for k, v in
+                    (("base_eur_mwh", self.margin_option_base), ("plancher_eur", self.margin_option_floor))
+                    if v is None]
+        return out
 
     def missing_indexed(self, need_financing: bool, manual_margin: bool) -> list[str]:
         """Paramètres nécessaires à un contrat indexé spot (pas de couverture EEX ni de risque à mesurer)."""

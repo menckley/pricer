@@ -53,6 +53,7 @@ class Quote:
     deviation: DeviationResult | None = None
     deviation_model: DeviationModel | None = None
     indexation: dict | None = None   # contrat indexé spot (indexation.py) : formule, spread, index par mois
+    option: dict | None = None       # option EEX (option_quote.py) : jambes, nappe, contrôles, volatilité historique
 
 
 def margin_by_rules(s: Settings, volume: float, shape_value: float, years: float) -> Margin:

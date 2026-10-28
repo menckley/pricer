@@ -59,6 +59,9 @@ def save_quote(mkt: Market, q: Quote, label: str, root: Path = PRICINGS, overwri
         q.deviation.by_month.to_csv(out / "deviation_by_month.csv")
     if q.indexation is not None:
         q.indexation["by_month"].to_csv(out / "index_by_month.csv")
+    if q.option is not None:
+        q.option["legs"].to_csv(out / "option_legs.csv")
+        q.option["smile"].to_csv(out / "option_smile.csv", index=False)
     if q.deviation_model is not None:
         q.deviation_model.table(36).to_csv(out / "deviation_rmse_by_horizon.csv")
     record = {
@@ -71,6 +74,7 @@ def save_quote(mkt: Market, q: Quote, label: str, root: Path = PRICINGS, overwri
         "deviation": None if q.deviation is None else {"cost_eur": q.deviation.cost, "sigma_eur": q.deviation.sigma,
                                                        "method": q.deviation.method},
         "indexation": None if q.indexation is None else {k: v for k, v in q.indexation.items() if k != "by_month"},
+        "option": None if q.option is None else {k: v for k, v in q.option.items() if k not in ("legs", "smile")},
         "hedge": q.hedge_values, "context": q.context, "warnings": q.warnings,
         "curve": {"method": mkt.meta.get("method"), "code_version": mkt.meta.get("code_version"),
                   "hours": len(mkt.curve), "from": str(mkt.first_day), "to": str(mkt.last_day)},

@@ -144,6 +144,30 @@ n'importe quel profil (bloc, grille, courbe horaire, contrat EEX).
 - Non couvert : écart de volume si le client ne consomme pas le profil contracté (fourniture sur courbe de charge,
   feuille de route B6-B7) ; swaps indexés (refusés : un swap « spot contre spot + spread » se réduit au spread).
 
+## Options EEX : call, put, collar
+
+Type de prix **Option on EEX Base future** (page Pricer, ou `pricer.option_quote.quote_option`) : options
+européennes EEX sur les futures Base France mois, trimestre et année, à partir de l'archive quotidienne des
+settlements d'options de power-hpfc (`data/eex/options/`).
+
+| Élément | Calcul |
+|---|---|
+| Modèle | Black-76 sur le future, prime non actualisée (constaté sur les settlements EEX : parité exacte sans actualisation) ; échéance en ACT/365 |
+| Échéance | règles EEX : option mois et trimestre, 4 jours de bourse avant la livraison, sauf janvier et Q1 : 3e jeudi de décembre ; option Cal : 2e jeudi de décembre ; calendrier EEX Derivatives (1er janvier, Vendredi saint, lundi de Pâques, 1er mai, 24, 25, 26, 31 décembre). Contrôle : un settlement archivé après l'échéance calculée arrête le pricing |
+| Volatilité | **implicite des settlements EEX de la séance**, recalculée à chaque pricing : option hors de la monnaie inversée à chaque strike, interpolation linéaire entre strikes, prolongement à plat hors de la grille (signalé) |
+| Contrôles | parité call − put, future implicite = settlement du future (au centime), calls décroissants et convexes, settlements inchangés depuis la séance précédente, volume et open interest |
+| Comparaison | même structure à la **volatilité historique** du future (σ² = Σ r² / Σ Δt sur les settlements archivés, ± σ / √(2n)) ; non calculée sous `min_variations_historique` variations. Ce n'est pas une précision : ni l'une ni l'autre n'est « la vérité » |
+| Prime proposée | jambes vendues à σ + `prime_vol_points`, achetées à σ − `prime_vol_points` ; + frais (`frais_eur_mwh` × MWh × jambes) + marge (section `options` de marge.yaml) pour une vente, − pour un achat |
+| Greeks | delta, gamma, vega (par point de vol), theta (par jour), par MWh, position du client |
+
+Structures : **call** (cap), **put** (floor), **collar** (le client achète le cap et vend le floor). Les settlements
+d'options EEX n'avaient aucun volume ni open interest au 27/10/2026 : ce sont des valorisations EEX ; le pricer
+l'affiche en avertissement.
+
+Non couvert : options Peak (inexistantes sur EEX), options horaires ou journalières (caps sur le spot : simulation,
+feuille de route C1), collar à prime nulle (recherche du strike), mesure de précision des volatilités face à la
+volatilité réalisée jusqu'à l'échéance (à ajouter dans power-hpfc quand des options seront arrivées à échéance).
+
 ## Application en ligne
 
 Le pricer est utilisé par l'application Streamlit du dépôt `power-hpfc` (page d'accueil **Pricer**, page
@@ -176,6 +200,8 @@ L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de 
 | `risk.py` | Coût de risque du résidu sur l'historique spot |
 | `deviation.py` | Prime de déviation day-ahead (proxy de persistance) |
 | `indexation.py` | Contrats indexés spot EPEX : spread juste et index par mois |
+| `options.py` | Calendrier EEX, échéances, Black-76, greeks, volatilité implicite, nappe et contrôles, volatilité historique |
+| `option_quote.py` | Pricing des structures d'options (call, put, collar) au format du journal |
 | `rates.py` | €STR BCE |
 | `settings.py` | Paramètres et politique de marge |
 | `quote.py` | Construction du prix |
@@ -246,7 +272,8 @@ Ordre indicatif : A (fiabiliser ce qui existe) avant B et C (nouveaux produits),
 8. Coûts de fourniture (limite 9) en lignes séparées, pour passer d'un prix de gros à un prix client.
 
 **Options (V2)**
-9. **Call, put, cap, floor, collar** sur mois / trimestre / an : Black-76 sur le forward (le settlement du contrat),
+9. **Fait (v0.7.0) : call, put, collar** (voir « Options EEX »). Reste : collar à prime nulle, call / put spreads,
+   EWMA et GARCH, précision des volatilités face au réalisé. Principe retenu, sur mois / trimestre / an : Black-76 sur le forward (le settlement du contrat),
    avec greeks (delta, gamma, vega, theta). Volatilité **recalculée à chaque pricing** sur toutes les séances
    archivées (fenêtre, nombre de points et intervalle de confiance enregistrés dans le journal), par tranche de délai
    avant livraison (effet Samuelson). Ordre de préférence : volatilité implicite des settlements d'options EEX

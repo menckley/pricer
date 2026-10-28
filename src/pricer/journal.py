@@ -67,6 +67,9 @@ def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None
         "indexation": None if q.indexation is None else {
             **{k: v for k, v in q.indexation.items() if k != "by_month"},
             "by_month": _records(q.indexation["by_month"])},
+        "option": None if q.option is None else {
+            **{k: v for k, v in q.option.items() if k not in ("legs", "smile")},
+            "legs": _records(q.option["legs"]), "smile": _records(q.option["smile"])},
         "margin": {"eur": q.margin.eur, "rule": q.margin.rule, **q.margin.detail},
         "warnings": q.warnings, "context": q.context,
         "curve": {"pricing_date": str(mkt.pricing_date), "method": mkt.meta.get("method"),

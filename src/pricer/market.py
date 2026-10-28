@@ -58,6 +58,8 @@ class Market:
     meta: dict = field(default_factory=dict)
     spot_loader: Callable[[date, date], pd.Series] | None = None
     hpfc_repo: Path | None = None
+    options_loader: Callable[[], pd.DataFrame] | None = None        # archive des settlements d'options EEX
+    history_loader: Callable[[], pd.DataFrame] | None = None        # archive de toutes les séances de futures
 
     def __post_init__(self):
         c = self.curve
@@ -145,6 +147,18 @@ class Market:
             raise ValueError(f"la courbe ne reproduit pas les settlements (écart max {worst:.4f} {self.unit})")
         return check
 
+    def options(self) -> pd.DataFrame:
+        """Settlements d'options EEX archivés (toutes séances), relus à chaque appel."""
+        if self.options_loader is None:
+            raise LookupError("aucune archive d'options EEX pour ce marché")
+        return self.options_loader()
+
+    def futures_history(self) -> pd.DataFrame:
+        """Settlements de futures EEX archivés (toutes séances), relus à chaque appel."""
+        if self.history_loader is None:
+            raise LookupError("aucune archive de settlements de futures pour ce marché")
+        return self.history_loader()
+
     def spot(self, start: date, end: date) -> pd.Series:
         if self.spot_loader is None:
             raise LookupError("aucune source de spot historique pour ce marché")
@@ -189,9 +203,18 @@ class Market:
         def spot_loader(start: date, end: date) -> pd.Series:
             return archive.load_spot(market, start, end, cfg.tz, hourly=True, root=data)
 
+        def options_loader() -> pd.DataFrame:
+            if not hasattr(archive, "load_options"):
+                raise LookupError("power-hpfc trop ancien : archive des options EEX absente (mettre à jour le dépôt)")
+            return archive.load_options(market, root=data)
+
+        def history_loader() -> pd.DataFrame:
+            return archive.load_settlements(market, root=data)
+
         mkt = cls(name=market, pricing_date=d, tz=cfg.tz, unit=cfg.unit, tol=cfg.arbitrage_tol,
                   peak_hours=(cfg.peak.start_hour, cfg.peak.end_hour), peak_weekdays=tuple(cfg.peak.weekdays),
-                  curve=curve, settle=settle, meta=meta, spot_loader=spot_loader, hpfc_repo=repo)
+                  curve=curve, settle=settle, meta=meta, spot_loader=spot_loader, hpfc_repo=repo,
+                  options_loader=options_loader, history_loader=history_loader)
         mkt.check_settlements()
         return mkt
 
