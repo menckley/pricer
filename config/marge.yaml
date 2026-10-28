@@ -15,3 +15,7 @@ indexation:                  # contrats indexés spot (« EPEX spot + spread »)
   base_eur_mwh: 0.10         # marge de base, EUR/MWh
   duree_eur_mwh_par_an: 0.02 # EUR/MWh par année au-delà de la première
   plancher_eur: 200         # marge minimum par deal, EUR
+
+options:
+  base_eur_mwh: 0.10              # marge par MWh sous-jacent
+  plancher_eur: 150              # marge minimum par deal, EUR
