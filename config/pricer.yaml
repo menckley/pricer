@@ -39,4 +39,4 @@ deviation:
 options:
   frais_eur_mwh: 0.0125             # frais EEX par MWh sous-jacent et par jambe
   prime_vol_points: 2          # points de vol ajoutés aux options vendues
-  min_variations_historique: 60
+  min_variations_historique: 30
