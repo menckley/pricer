@@ -1,0 +1,764 @@
+{
+ "id": "20261029T114357Z_qzsedrftyguhu",
+ "priced_at_utc": "2026-10-29T11:43:57+00:00",
+ "label": "qzsedrftyguhu",
+ "product": {
+  "name": "Sell Call (cap) Cal-27 K=124 — 1 MW",
+  "spec": {
+   "type": "option",
+   "structure": "call",
+   "series": "Cal-27",
+   "mw": 1.0,
+   "strikes": {
+    "strike": 124.0
+   }
+  },
+  "physical": false,
+  "side": "sell",
+  "delivery_start": "2027-01-01",
+  "delivery_end": "2027-12-31",
+  "hours": 8760,
+  "volume_mwh": 8760.0
+ },
+ "fair_price": 5.391000000000005,
+ "offer_price": 5.842620360900706,
+ "price_build_up": [
+  {
+   "item": "Premium at EEX settlement volatility (fair)",
+   "€": 47225.16,
+   "€/MWh": 5.391
+  },
+  {
+   "item": "+ Volatility premium (2 vol pts)",
+   "€": 2970.6943614901,
+   "€/MWh": 0.3391203609
+  },
+  {
+   "item": "+ EEX option fees",
+   "€": 109.5,
+   "€/MWh": 0.0125
+  },
+  {
+   "item": "+ Margin (rules (options))",
+   "€": 876.0,
+   "€/MWh": 0.1
+  },
+  {
+   "item": "= Offer premium (paid by the client if positive)",
+   "€": 51181.3543614902,
+   "€/MWh": 5.8426203609
+  }
+ ],
+ "hedging": "EEX option (Black-76)",
+ "hedge": [],
+ "strategies": [],
+ "risk": {
+  "cost_eur": 0.0,
+  "sigma_eur": 0.0,
+  "confidence": 0.95,
+  "by_month": []
+ },
+ "deviation": null,
+ "indexation": null,
+ "option": {
+  "structure": "call",
+  "series": "Cal-27",
+  "expiry": "2026-12-10",
+  "T years": 0.1178082191780822,
+  "forward €/MWh": 124.05,
+  "checks": {
+   "strikes": 87,
+   "strike range": "42 → 128",
+   "put-call parity max residual €/MWh": 1.4210854715202004e-14,
+   "implied forward €/MWh": 124.05,
+   "future settlement €/MWh": 124.05,
+   "forward − settlement €/MWh": 0.0,
+   "calls decreasing in strike": true,
+   "calls convex in strike": true,
+   "traded volume": 0.0,
+   "open interest": 0.0,
+   "unchanged vs previous session": false,
+   "previous session": "2026-10-27"
+  },
+  "historical": {
+   "returns": 46,
+   "first session": "2026-08-24",
+   "last session": "2026-10-28",
+   "minimum returns": 30,
+   "sigma estimate": 0.4196170424646799,
+   "standard error": 0.0437481008689427,
+   "sigma": 0.4196170424646799,
+   "reason": null
+  },
+  "comparison": {
+   "premium EEX vol €/MWh": 5.391000000000005,
+   "premium historical vol €/MWh": 7.145109582735699,
+   "difference €/MWh": -1.754109582735694,
+   "difference %": -24.549792587842795,
+   "vol difference pts (per leg)": [
+    -10.349587872395205
+   ]
+  },
+  "formula": "Sell Call (cap) Cal-27 K=124 — 1 MW: 5.843 €/MWh (51,181 €)",
+  "legs": [
+   {
+    "leg": "call 124",
+    "type": "call",
+    "strike": 124.0,
+    "client position": 1,
+    "our position": -1,
+    "EEX vol %": 31.6121163741,
+    "vol source": "EEX strike",
+    "premium EEX vol €/MWh": 5.391,
+    "vol charged %": 33.6121163741,
+    "premium charged €/MWh": 5.7301203609,
+    "delta (client)": 0.5231125312,
+    "gamma (client)": 0.0295898169,
+    "vega (client)": 0.169576231,
+    "theta (client)": -0.0623332971,
+    "historical vol %": 41.9617042465,
+    "premium historical vol €/MWh": 7.1451095827
+   }
+  ],
+  "smile": [
+   {
+    "index": 0,
+    "strike": 42.0,
+    "call": 82.342,
+    "put": 0.292,
+    "vol": 1.5533236098
+   },
+   {
+    "index": 1,
+    "strike": 43.0,
+    "call": 81.354,
+    "put": 0.304,
+    "vol": 1.5312917672
+   },
+   {
+    "index": 2,
+    "strike": 44.0,
+    "call": 80.367,
+    "put": 0.317,
+    "vol": 1.5101863594
+   },
+   {
+    "index": 3,
+    "strike": 45.0,
+    "call": 79.38,
+    "put": 0.33,
+    "vol": 1.4891935916
+   },
+   {
+    "index": 4,
+    "strike": 46.0,
+    "call": 78.393,
+    "put": 0.343,
+    "vol": 1.4683231121
+   },
+   {
+    "index": 5,
+    "strike": 47.0,
+    "call": 77.407,
+    "put": 0.357,
+    "vol": 1.448246506
+   },
+   {
+    "index": 6,
+    "strike": 48.0,
+    "call": 76.421,
+    "put": 0.371,
+    "vol": 1.4282521032
+   },
+   {
+    "index": 7,
+    "strike": 49.0,
+    "call": 75.436,
+    "put": 0.386,
+    "vol": 1.4089598442
+   },
+   {
+    "index": 8,
+    "strike": 50.0,
+    "call": 74.451,
+    "put": 0.401,
+    "vol": 1.3897183754
+   },
+   {
+    "index": 9,
+    "strike": 51.0,
+    "call": 73.466,
+    "put": 0.416,
+    "vol": 1.3705381847
+   },
+   {
+    "index": 10,
+    "strike": 52.0,
+    "call": 72.482,
+    "put": 0.432,
+    "vol": 1.3519686121
+   },
+   {
+    "index": 11,
+    "strike": 53.0,
+    "call": 71.498,
+    "put": 0.448,
+    "vol": 1.3334348727
+   },
+   {
+    "index": 12,
+    "strike": 54.0,
+    "call": 70.514,
+    "put": 0.464,
+    "vol": 1.3149463153
+   },
+   {
+    "index": 13,
+    "strike": 55.0,
+    "call": 69.531,
+    "put": 0.481,
+    "vol": 1.2969919971
+   },
+   {
+    "index": 14,
+    "strike": 56.0,
+    "call": 68.548,
+    "put": 0.498,
+    "vol": 1.2790618635
+   },
+   {
+    "index": 15,
+    "strike": 57.0,
+    "call": 67.566,
+    "put": 0.516,
+    "vol": 1.2616103217
+   },
+   {
+    "index": 16,
+    "strike": 58.0,
+    "call": 66.584,
+    "put": 0.534,
+    "vol": 1.2441660516
+   },
+   {
+    "index": 17,
+    "strike": 59.0,
+    "call": 65.603,
+    "put": 0.553,
+    "vol": 1.227151626
+   },
+   {
+    "index": 18,
+    "strike": 60.0,
+    "call": 64.622,
+    "put": 0.572,
+    "vol": 1.2101307991
+   },
+   {
+    "index": 19,
+    "strike": 61.0,
+    "call": 63.642,
+    "put": 0.592,
+    "vol": 1.1934969043
+   },
+   {
+    "index": 20,
+    "strike": 62.0,
+    "call": 62.662,
+    "put": 0.612,
+    "vol": 1.1768454946
+   },
+   {
+    "index": 21,
+    "strike": 63.0,
+    "call": 61.683,
+    "put": 0.633,
+    "vol": 1.1605430429
+   },
+   {
+    "index": 22,
+    "strike": 64.0,
+    "call": 60.704,
+    "put": 0.654,
+    "vol": 1.1442139724
+   },
+   {
+    "index": 23,
+    "strike": 65.0,
+    "call": 59.726,
+    "put": 0.676,
+    "vol": 1.1282000703
+   },
+   {
+    "index": 24,
+    "strike": 66.0,
+    "call": 58.748,
+    "put": 0.698,
+    "vol": 1.1121520115
+   },
+   {
+    "index": 25,
+    "strike": 67.0,
+    "call": 57.772,
+    "put": 0.722,
+    "vol": 1.0967000696
+   },
+   {
+    "index": 26,
+    "strike": 68.0,
+    "call": 56.795,
+    "put": 0.745,
+    "vol": 1.0808860562
+   },
+   {
+    "index": 27,
+    "strike": 69.0,
+    "call": 55.82,
+    "put": 0.77,
+    "vol": 1.0656206001
+   },
+   {
+    "index": 28,
+    "strike": 70.0,
+    "call": 54.845,
+    "put": 0.795,
+    "vol": 1.05029051
+   },
+   {
+    "index": 29,
+    "strike": 71.0,
+    "call": 53.87,
+    "put": 0.82,
+    "vol": 1.0349040055
+   },
+   {
+    "index": 30,
+    "strike": 72.0,
+    "call": 52.897,
+    "put": 0.847,
+    "vol": 1.0199934452
+   },
+   {
+    "index": 31,
+    "strike": 73.0,
+    "call": 51.924,
+    "put": 0.874,
+    "vol": 1.0050059855
+   },
+   {
+    "index": 32,
+    "strike": 74.0,
+    "call": 50.952,
+    "put": 0.902,
+    "vol": 0.9901950657
+   },
+   {
+    "index": 33,
+    "strike": 75.0,
+    "call": 49.981,
+    "put": 0.931,
+    "vol": 0.9755438298
+   },
+   {
+    "index": 34,
+    "strike": 76.0,
+    "call": 49.011,
+    "put": 0.961,
+    "vol": 0.9610364694
+   },
+   {
+    "index": 35,
+    "strike": 77.0,
+    "call": 48.041,
+    "put": 0.991,
+    "vol": 0.9464357923
+   },
+   {
+    "index": 36,
+    "strike": 78.0,
+    "call": 47.072,
+    "put": 1.022,
+    "vol": 0.9319645052
+   },
+   {
+    "index": 37,
+    "strike": 79.0,
+    "call": 46.105,
+    "put": 1.055,
+    "vol": 0.9178171257
+   },
+   {
+    "index": 38,
+    "strike": 80.0,
+    "call": 45.138,
+    "put": 1.088,
+    "vol": 0.9035571273
+   },
+   {
+    "index": 39,
+    "strike": 81.0,
+    "call": 44.172,
+    "put": 1.122,
+    "vol": 0.8893873652
+   },
+   {
+    "index": 40,
+    "strike": 82.0,
+    "call": 43.208,
+    "put": 1.158,
+    "vol": 0.8754852778
+   },
+   {
+    "index": 41,
+    "strike": 83.0,
+    "call": 42.244,
+    "put": 1.194,
+    "vol": 0.861455405
+   },
+   {
+    "index": 42,
+    "strike": 84.0,
+    "call": 41.282,
+    "put": 1.232,
+    "vol": 0.8476599292
+   },
+   {
+    "index": 43,
+    "strike": 85.0,
+    "call": 40.32,
+    "put": 1.27,
+    "vol": 0.8337282255
+   },
+   {
+    "index": 44,
+    "strike": 86.0,
+    "call": 39.36,
+    "put": 1.31,
+    "vol": 0.8200003611
+   },
+   {
+    "index": 45,
+    "strike": 87.0,
+    "call": 38.402,
+    "put": 1.352,
+    "vol": 0.8064514751
+   },
+   {
+    "index": 46,
+    "strike": 88.0,
+    "call": 37.444,
+    "put": 1.394,
+    "vol": 0.7927453173
+   },
+   {
+    "index": 47,
+    "strike": 89.0,
+    "call": 36.488,
+    "put": 1.438,
+    "vol": 0.7791917942
+   },
+   {
+    "index": 48,
+    "strike": 90.0,
+    "call": 35.534,
+    "put": 1.484,
+    "vol": 0.7657689045
+   },
+   {
+    "index": 49,
+    "strike": 91.0,
+    "call": 34.581,
+    "put": 1.531,
+    "vol": 0.752313375
+   },
+   {
+    "index": 50,
+    "strike": 92.0,
+    "call": 33.63,
+    "put": 1.58,
+    "vol": 0.7389564195
+   },
+   {
+    "index": 51,
+    "strike": 93.0,
+    "call": 32.68,
+    "put": 1.63,
+    "vol": 0.7255448449
+   },
+   {
+    "index": 52,
+    "strike": 94.0,
+    "call": 31.732,
+    "put": 1.682,
+    "vol": 0.7122020194
+   },
+   {
+    "index": 53,
+    "strike": 95.0,
+    "call": 30.786,
+    "put": 1.736,
+    "vol": 0.6989097105
+   },
+   {
+    "index": 54,
+    "strike": 96.0,
+    "call": 29.842,
+    "put": 1.792,
+    "vol": 0.6856503497
+   },
+   {
+    "index": 55,
+    "strike": 97.0,
+    "call": 28.9,
+    "put": 1.85,
+    "vol": 0.6724069417
+   },
+   {
+    "index": 56,
+    "strike": 98.0,
+    "call": 27.961,
+    "put": 1.911,
+    "vol": 0.6592776624
+   },
+   {
+    "index": 57,
+    "strike": 99.0,
+    "call": 27.023,
+    "put": 1.973,
+    "vol": 0.6460135473
+   },
+   {
+    "index": 58,
+    "strike": 100.0,
+    "call": 26.088,
+    "put": 2.038,
+    "vol": 0.6328249021
+   },
+   {
+    "index": 59,
+    "strike": 101.0,
+    "call": 25.156,
+    "put": 2.106,
+    "vol": 0.6196863727
+   },
+   {
+    "index": 60,
+    "strike": 102.0,
+    "call": 24.226,
+    "put": 2.176,
+    "vol": 0.6064717607
+   },
+   {
+    "index": 61,
+    "strike": 103.0,
+    "call": 23.299,
+    "put": 2.249,
+    "vol": 0.5932645696
+   },
+   {
+    "index": 62,
+    "strike": 104.0,
+    "call": 22.376,
+    "put": 2.326,
+    "vol": 0.5801364453
+   },
+   {
+    "index": 63,
+    "strike": 105.0,
+    "call": 21.455,
+    "put": 2.405,
+    "vol": 0.5668695881
+   },
+   {
+    "index": 64,
+    "strike": 106.0,
+    "call": 20.538,
+    "put": 2.488,
+    "vol": 0.5536289539
+   },
+   {
+    "index": 65,
+    "strike": 107.0,
+    "call": 19.625,
+    "put": 2.575,
+    "vol": 0.5403828587
+   },
+   {
+    "index": 66,
+    "strike": 108.0,
+    "call": 18.715,
+    "put": 2.665,
+    "vol": 0.5270148563
+   },
+   {
+    "index": 67,
+    "strike": 109.0,
+    "call": 17.81,
+    "put": 2.76,
+    "vol": 0.5136656844
+   },
+   {
+    "index": 68,
+    "strike": 110.0,
+    "call": 16.91,
+    "put": 2.86,
+    "vol": 0.5002960333
+   },
+   {
+    "index": 69,
+    "strike": 111.0,
+    "call": 16.014,
+    "put": 2.964,
+    "vol": 0.4867884363
+   },
+   {
+    "index": 70,
+    "strike": 112.0,
+    "call": 15.123,
+    "put": 3.073,
+    "vol": 0.4731849021
+   },
+   {
+    "index": 71,
+    "strike": 113.0,
+    "call": 14.239,
+    "put": 3.189,
+    "vol": 0.4595911128
+   },
+   {
+    "index": 72,
+    "strike": 114.0,
+    "call": 13.36,
+    "put": 3.31,
+    "vol": 0.4458081868
+   },
+   {
+    "index": 73,
+    "strike": 115.0,
+    "call": 12.488,
+    "put": 3.438,
+    "vol": 0.4319301349
+   },
+   {
+    "index": 74,
+    "strike": 116.0,
+    "call": 11.624,
+    "put": 3.574,
+    "vol": 0.4179650009
+   },
+   {
+    "index": 75,
+    "strike": 117.0,
+    "call": 10.769,
+    "put": 3.719,
+    "vol": 0.4039103859
+   },
+   {
+    "index": 76,
+    "strike": 118.0,
+    "call": 9.922,
+    "put": 3.872,
+    "vol": 0.3896231823
+   },
+   {
+    "index": 77,
+    "strike": 119.0,
+    "call": 9.088,
+    "put": 4.038,
+    "vol": 0.3753405376
+   },
+   {
+    "index": 78,
+    "strike": 120.0,
+    "call": 8.267,
+    "put": 4.217,
+    "vol": 0.3609532456
+   },
+   {
+    "index": 79,
+    "strike": 121.0,
+    "call": 7.466,
+    "put": 4.416,
+    "vol": 0.3467701123
+   },
+   {
+    "index": 80,
+    "strike": 122.0,
+    "call": 6.694,
+    "put": 4.644,
+    "vol": 0.333179764
+   },
+   {
+    "index": 81,
+    "strike": 123.0,
+    "call": 5.979,
+    "put": 4.929,
+    "vol": 0.3216618552
+   },
+   {
+    "index": 82,
+    "strike": 124.0,
+    "call": 5.391,
+    "put": 5.341,
+    "vol": 0.3161211637
+   },
+   {
+    "index": 83,
+    "strike": 125.0,
+    "call": 5.003,
+    "put": 5.953,
+    "vol": 0.3206610119
+   },
+   {
+    "index": 84,
+    "strike": 126.0,
+    "call": 4.749,
+    "put": 6.699,
+    "vol": 0.3314260338
+   },
+   {
+    "index": 85,
+    "strike": 127.0,
+    "call": 4.556,
+    "put": 7.506,
+    "vol": 0.3443081498
+   },
+   {
+    "index": 86,
+    "strike": 128.0,
+    "call": 4.393,
+    "put": 8.343,
+    "vol": 0.3576701487
+   }
+  ]
+ },
+ "margin": {
+  "eur": 876.0,
+  "rule": "rules (options)",
+  "base €": 876.0,
+  "floor €": 150,
+  "floor applied": false
+ },
+ "warnings": [
+  "EEX option settlements Cal-27: no traded volume nor open interest — EEX valuations, not traded prices"
+ ],
+ "context": {
+  "market": "FR",
+  "pricing date": "2026-10-28",
+  "pricing": "EEX option (Black-76)",
+  "strategy requested": "EEX option (Black-76)",
+  "strategy selected": "EEX option (Black-76)",
+  "expiry": "2026-12-10",
+  "volatility": "implied from EEX option settlements of the pricing session",
+  "vol premium pts": 2,
+  "option fee €/MWh": 0.0125,
+  "pricer config": "99368e77c0bc",
+  "margin config": "614d40eb842d"
+ },
+ "curve": {
+  "pricing_date": "2026-10-28",
+  "method": "E",
+  "code_version": "859550da0829ef251c074658aa14ef813061ffc6"
+ },
+ "pricer_version": "0.7.0"
+}
