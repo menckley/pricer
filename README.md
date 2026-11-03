@@ -4,7 +4,11 @@ Pricer de produits structurés électricité France, construit uniquement sur de
 
 - la **HPFC** horaire, les **settlements EEX** et le **spot day-ahead** historique archivés par
   [`power-hpfc`](https://github.com/menckley/power-hpfc) (lus sur son clone local) ;
-- l'**€STR** publié par la BCE (API publique), pour le coût de financement.
+- l'**€STR** publié par la BCE, pour le coût de financement : d'abord l'API publique (en cas de panne passagère,
+  504, 503…, trois nouveaux essais après 2, 5 et 10 s ; un taux obtenu est gardé en mémoire pour la journée) ; si
+  elle reste indisponible, le dernier €STR antérieur ou égal à la date de pricing du **journal archivé chaque jour par
+  power-hpfc** (`data/ecb/estr.csv`), **signalé dans le résultat** (avertissement avec la date et l'ancienneté du
+  taux, source dans le contexte du pricing) ; sans journal, erreur explicite.
 
 Aucune donnée n'est inventée : une courbe absente, un produit non coté, un €STR non publié, une heure hors de la
 courbe, un historique insuffisant ou un paramètre non renseigné arrêtent le calcul avec un message explicite. La
@@ -202,7 +206,7 @@ L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de 
 | `indexation.py` | Contrats indexés spot EPEX : spread juste et index par mois |
 | `options.py` | Calendrier EEX, échéances, Black-76, greeks, volatilité implicite, nappe et contrôles, volatilité historique |
 | `option_quote.py` | Pricing des structures d'options (call, put, collar) au format du journal |
-| `rates.py` | €STR BCE |
+| `rates.py` | €STR BCE (nouveaux essais, cache par jour, repli sur le journal archivé de power-hpfc) |
 | `settings.py` | Paramètres et politique de marge |
 | `quote.py` | Construction du prix |
 | `tbx.py` | TBx, batterie en valeur intrinsèque, backtest HPFC / spot |

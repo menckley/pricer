@@ -87,13 +87,14 @@ def quote_indexed(mkt: Market, p: Product, s: Settings, manual_margin_eur_mwh: f
     fees = s.epex_fee * V
     conv = s.conversion_fee * V
     if need_fin:
-        d_estr, v_estr = rates.estr(mkt.pricing_date)
+        d_estr, v_estr, estr_source, estr_warning = rates.estr_for_pricing(mkt.pricing_date, mkt.estr_loader)
         rate = v_estr + s.spread_bp / 100
         fin = financing_cost(mkt, p, s, rate)
         fin_eur = float(fin["financing cost €"].sum())
-        rate_ctx = {"€STR date": str(d_estr), "€STR %": v_estr, "spread bp": s.spread_bp, "funding rate %": rate}
+        rate_ctx = {"€STR date": str(d_estr), "€STR %": v_estr, "€STR source": estr_source,
+                    "spread bp": s.spread_bp, "funding rate %": rate}
     else:
-        fin, fin_eur, rate_ctx = pd.DataFrame(), 0.0, {}
+        fin, fin_eur, rate_ctx, estr_warning = pd.DataFrame(), 0.0, {}, None
     rounding = ROUNDING_MAX * V if side == "buy" else 0.0
     years = _years(mkt, p)
     if manual_margin_eur_mwh is not None:
@@ -124,7 +125,7 @@ def quote_indexed(mkt: Market, p: Product, s: Settings, manual_margin_eur_mwh: f
              "index": "monthly average of the EPEX day-ahead price over the delivered hours, weighted by the MWh "
                       "of each hour, rounded up to the cent",
              "by_month": by_month}
-    warnings = []
+    warnings = [estr_warning] if estr_warning else []
     if need_fin:
         warnings.append("funding cost computed on the energy value at the HPFC: it moves with the realised spot")
     context = {"market": mkt.name, "pricing date": str(mkt.pricing_date), "pricing": INDEX,

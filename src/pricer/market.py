@@ -60,6 +60,7 @@ class Market:
     hpfc_repo: Path | None = None
     options_loader: Callable[[], pd.DataFrame] | None = None        # archive des settlements d'options EEX
     history_loader: Callable[[], pd.DataFrame] | None = None        # archive de toutes les séances de futures
+    estr_loader: Callable[[], pd.Series] | None = None              # journal des €STR (data/ecb/estr.csv)
 
     def __post_init__(self):
         c = self.curve
@@ -211,10 +212,15 @@ class Market:
         def history_loader() -> pd.DataFrame:
             return archive.load_settlements(market, root=data)
 
+        def estr_loader() -> pd.Series:
+            if not hasattr(archive, "load_estr"):
+                raise LookupError("power-hpfc trop ancien : journal des €STR absent (mettre à jour le dépôt)")
+            return archive.load_estr(root=data)
+
         mkt = cls(name=market, pricing_date=d, tz=cfg.tz, unit=cfg.unit, tol=cfg.arbitrage_tol,
                   peak_hours=(cfg.peak.start_hour, cfg.peak.end_hour), peak_weekdays=tuple(cfg.peak.weekdays),
                   curve=curve, settle=settle, meta=meta, spot_loader=spot_loader, hpfc_repo=repo,
-                  options_loader=options_loader, history_loader=history_loader)
+                  options_loader=options_loader, history_loader=history_loader, estr_loader=estr_loader)
         mkt.check_settlements()
         return mkt
 

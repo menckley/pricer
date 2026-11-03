@@ -152,13 +152,14 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     direction = 1.0 if side == "sell" else -1.0
 
     if need_fin:
-        d_estr, v_estr = rates.estr(mkt.pricing_date)
+        d_estr, v_estr, estr_source, estr_warning = rates.estr_for_pricing(mkt.pricing_date, mkt.estr_loader)
         rate = v_estr + s.spread_bp / 100
         fin = financing_cost(mkt, p, s, rate)
         fin_eur = float(fin["financing cost €"].sum())
-        rate_ctx = {"€STR date": str(d_estr), "€STR %": v_estr, "spread bp": s.spread_bp, "funding rate %": rate}
+        rate_ctx = {"€STR date": str(d_estr), "€STR %": v_estr, "€STR source": estr_source,
+                    "spread bp": s.spread_bp, "funding rate %": rate}
     else:
-        fin, fin_eur, rate_ctx = pd.DataFrame(), 0.0, {}
+        fin, fin_eur, rate_ctx, estr_warning = pd.DataFrame(), 0.0, {}, None
     if manual_margin_eur_mwh is not None and manual_margin_eur_mwh < 0:
         raise ValueError("marge manuelle négative")
     years = _years(mkt, p)
@@ -258,7 +259,7 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     lines = pd.DataFrame(rows, columns=["item", "€"]).set_index("item")
     lines["€/MWh"] = lines["€"] / V
 
-    warnings = list(notes)
+    warnings = list(notes) + ([estr_warning] if estr_warning else [])
     unhedge = hv["unhedgeable MWh (no quoted month/quarter/year)"]
     if unhedge > 0:
         warnings.append(f"{unhedge:,.0f} MWh sourced in day-ahead without any EEX hedge (current month): "
