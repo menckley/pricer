@@ -1,0 +1,225 @@
+{
+ "id": "20261103T120005Z_boulangerie",
+ "priced_at_utc": "2026-11-03T12:00:05+00:00",
+ "label": "boulangerie",
+ "product": {
+  "name": "Sell 1 MW weekly profile (56 h/week) 01/01/2027-31/12/2027",
+  "spec": {
+   "type": "weekly",
+   "start": "2027-01-01",
+   "end": "2027-12-31",
+   "mw": 1.0,
+   "side": "sell",
+   "grid_by_weekday_hours_0_23": {
+    "lundi": "001111000000111100000000",
+    "mardi": "001111000000111100000000",
+    "mercredi": "001111000000111100000000",
+    "jeudi": "001111000000111100000000",
+    "vendredi": "001111000000111100000000",
+    "samedi": "001111000000111100000000",
+    "dimanche": "001111000000111100000000"
+   }
+  },
+  "physical": true,
+  "side": "sell",
+  "delivery_start": "2027-01-01",
+  "delivery_end": "2027-12-31",
+  "hours": 2920,
+  "volume_mwh": 2920.0
+ },
+ "fair_price": 100.10724315068492,
+ "offer_price": 100.76724315068492,
+ "price_build_up": [
+  {
+   "item": "Day-ahead fees",
+   "€": 43.8,
+   "€/MWh": 0.015
+  },
+  {
+   "item": "Financial-to-physical conversion",
+   "€": 277.4,
+   "€/MWh": 0.095
+  },
+  {
+   "item": "Funding cost",
+   "€": 1311.6851340765,
+   "€/MWh": 0.4492072377
+  },
+  {
+   "item": "Index rounding to the cent (paid to the producer)",
+   "€": 0.0,
+   "€/MWh": 0.0
+  },
+  {
+   "item": "Margin (rules (indexation))",
+   "€": 292.0,
+   "€/MWh": 0.1
+  },
+  {
+   "item": "= Spread (exact)",
+   "€": 1924.8851340765,
+   "€/MWh": 0.6592072377
+  },
+  {
+   "item": "Spread rounded up to the cent",
+   "€": 2.3148659235,
+   "€/MWh": 0.0007927623
+  },
+  {
+   "item": "= Spread quoted",
+   "€": 1927.2,
+   "€/MWh": 0.66
+  }
+ ],
+ "hedging": "EPEX spot indexed (no hedge)",
+ "hedge": [],
+ "strategies": [],
+ "risk": {
+  "cost_eur": 0.0,
+  "sigma_eur": 0.0,
+  "confidence": 0.95,
+  "by_month": []
+ },
+ "deviation": null,
+ "indexation": {
+  "formula": "EPEX spot day-ahead + 0.66 €/MWh",
+  "spread €/MWh": 0.66,
+  "spread exact €/MWh": 0.6592072376974146,
+  "index": "monthly average of the EPEX day-ahead price over the delivered hours, weighted by the MWh of each hour, rounded up to the cent",
+  "by_month": [
+   {
+    "month": "2027-01",
+    "MWh": 248.0,
+    "index exact €/MWh": 204.4756201567,
+    "index €/MWh (ceil to cent)": 204.48,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 205.14
+   },
+   {
+    "month": "2027-02",
+    "MWh": 224.0,
+    "index exact €/MWh": 191.5124727196,
+    "index €/MWh (ceil to cent)": 191.52,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 192.18
+   },
+   {
+    "month": "2027-03",
+    "MWh": 247.0,
+    "index exact €/MWh": 131.1652104701,
+    "index €/MWh (ceil to cent)": 131.17,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 131.83
+   },
+   {
+    "month": "2027-04",
+    "MWh": 240.0,
+    "index exact €/MWh": 64.3229127873,
+    "index €/MWh (ceil to cent)": 64.33,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 64.99
+   },
+   {
+    "month": "2027-05",
+    "MWh": 248.0,
+    "index exact €/MWh": 43.2428654404,
+    "index €/MWh (ceil to cent)": 43.25,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 43.91
+   },
+   {
+    "month": "2027-06",
+    "MWh": 240.0,
+    "index exact €/MWh": 48.9608868942,
+    "index €/MWh (ceil to cent)": 48.97,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 49.63
+   },
+   {
+    "month": "2027-07",
+    "MWh": 248.0,
+    "index exact €/MWh": 67.9843491928,
+    "index €/MWh (ceil to cent)": 67.99,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 68.65
+   },
+   {
+    "month": "2027-08",
+    "MWh": 248.0,
+    "index exact €/MWh": 73.9865149781,
+    "index €/MWh (ceil to cent)": 73.99,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 74.65
+   },
+   {
+    "month": "2027-09",
+    "MWh": 240.0,
+    "index exact €/MWh": 71.0688498454,
+    "index €/MWh (ceil to cent)": 71.07,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 71.73
+   },
+   {
+    "month": "2027-10",
+    "MWh": 249.0,
+    "index exact €/MWh": 85.1162033776,
+    "index €/MWh (ceil to cent)": 85.12,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 85.78
+   },
+   {
+    "month": "2027-11",
+    "MWh": 240.0,
+    "index exact €/MWh": 108.5101632071,
+    "index €/MWh (ceil to cent)": 108.52,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 109.18
+   },
+   {
+    "month": "2027-12",
+    "MWh": 248.0,
+    "index exact €/MWh": 116.4393290283,
+    "index €/MWh (ceil to cent)": 116.44,
+    "spread €/MWh": 0.66,
+    "expected invoice price €/MWh (index + spread)": 117.1
+   }
+  ]
+ },
+ "option": null,
+ "margin": {
+  "eur": 292.0,
+  "rule": "rules (indexation)",
+  "base + tenor €": 292.0,
+  "floor €": 200,
+  "floor applied": false
+ },
+ "warnings": [
+  "funding cost computed on the energy value at the HPFC: it moves with the realised spot"
+ ],
+ "context": {
+  "market": "FR",
+  "pricing date": "2026-10-30",
+  "pricing": "EPEX spot indexed",
+  "strategy requested": "EPEX spot indexed",
+  "strategy selected": "EPEX spot indexed (no hedge)",
+  "formula": "EPEX spot day-ahead + 0.66 €/MWh",
+  "day-ahead fee €/MWh": 0.015,
+  "fin-to-phys conversion €/MWh": 0.095,
+  "sourcing paid D+": 5,
+  "client pays D+": 50,
+  "day count": 360,
+  "€STR date": "2026-10-30",
+  "€STR %": 2.44,
+  "€STR source": "ECB API",
+  "spread bp": 115,
+  "funding rate %": 3.59,
+  "pricer config": "99368e77c0bc",
+  "margin config": "614d40eb842d"
+ },
+ "curve": {
+  "pricing_date": "2026-10-30",
+  "method": "E",
+  "code_version": "7f78faa50aebdfe1bc6bf6693cd26100f7bdc496"
+ },
+ "pricer_version": "0.7.2"
+}
