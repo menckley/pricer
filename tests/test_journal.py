@@ -1,6 +1,6 @@
 import hashlib
-import re
 import json
+import re
 from datetime import date
 
 import pytest

@@ -33,7 +33,8 @@ class WeekGrid:
                                                              grid_gap="1px"))
         buttons = []
         for label, fn in (("All", lambda h, d: True), ("Clear", lambda h, d: False),
-                          ("Weekdays 0h-24h", lambda h, d: d < 5), ("Peak Mon-Fri 8h-20h", lambda h, d: d < 5 and 8 <= h < 20),
+                          ("Weekdays 0h-24h", lambda h, d: d < 5),
+                          ("Peak Mon-Fri 8h-20h", lambda h, d: d < 5 and 8 <= h < 20),
                           ("Invert", None)):
             b = w.Button(description=label, layout=w.Layout(width="auto"))
             b.on_click(self._setter(fn))
@@ -98,7 +99,8 @@ class PricerForm:
         self.path = w.Text(value="", placeholder="CSV path (columns horodatage, mw)", description="File",
                            style=style, layout=w.Layout(width="600px"))
         self.week = WeekGrid()
-        self.strategy = w.Dropdown(options=[("Auto (cheapest scenario)", "auto")] + [(k, k) for k in (*STRATEGIES, FULL_DA)],
+        strategies = [("Auto (cheapest scenario)", "auto")] + [(k, k) for k in (*STRATEGIES, FULL_DA)]
+        self.strategy = w.Dropdown(options=strategies,
                                    value=settings.strategy, description="Hedging", style=style, layout=lay)
         self.margin_mode = w.Dropdown(options=[("Rules (config/marge.yaml)", "rules"), ("Manual", "manual")],
                                       value="rules", description="Margin", style=style, layout=lay)

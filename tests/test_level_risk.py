@@ -9,8 +9,8 @@ import pytest
 from pricer import rates
 from pricer.deviation import build_model, market_premium
 from pricer.option_quote import quote_option
-from pricer.quote import month_contract, quote, risk_charge, vol_provider
 from pricer.products import block
+from pricer.quote import month_contract, quote, risk_charge, vol_provider
 from pricer.risk import history_bounds
 from tests.helpers import settings
 from tests.test_options import HIST, SIGMA, option_market

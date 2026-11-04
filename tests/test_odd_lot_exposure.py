@@ -3,11 +3,11 @@ from datetime import date
 
 import pandas as pd
 
-from tests.helpers import market, settings
 from pricer import rates
 from pricer.hedging import Hedge
 from pricer.products import grid_from_hours, weekly
 from pricer.quote import odd_lot_mwh, quote
+from tests.helpers import market, settings
 
 
 def test_odd_lot_mwh_counts_only_the_fraction_below_a_full_lot():

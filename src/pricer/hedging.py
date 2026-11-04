@@ -27,7 +27,8 @@ KIND_LEVEL = {"month": "mois", "quarter": "trimestre", "year": "année"}
 
 
 def quoted_blocks(mkt: Market, levels) -> dict:
-    """Produits mois / trimestre / an cotés à la fois en Base et en Peak : {(début, fin): (nom, settl. Base, settl. Peak)}."""
+    """Produits mois / trimestre / an cotés à la fois en Base et en Peak :
+    {(début, fin): (nom, settl. Base, settl. Peak)}."""
     std = mkt.settle[mkt.settle["kind"].map(KIND_LEVEL).isin(levels)]
     both = std.pivot_table(index=["start", "end", "name"], columns="profile", values="settlement", aggfunc="first")
     if not {"Base", "Peak"} <= set(both.columns):
@@ -78,7 +79,8 @@ class Hedge:
 
 
 def hedge(mkt: Market, p: Product, strategy: str = "Base+Peak monthly") -> Hedge:
-    """Couverture du produit par blocs EEX ; avec Peak, reproduit exactement les MWh Peak et Offpeak de chaque produit."""
+    """Couverture du produit par blocs EEX ; avec Peak, reproduit exactement les MWh Peak et Offpeak de chaque
+    produit."""
     if strategy not in STRATEGIES:
         raise ValueError(f"stratégie inconnue {strategy!r} : {', '.join(STRATEGIES)}")
     require_on_grid(mkt, p)
@@ -116,7 +118,8 @@ def hedge(mkt: Market, p: Product, strategy: str = "Base+Peak monthly") -> Hedge
 
 
 def hedge_summary(mkt: Market, p: Product, h: Hedge) -> dict:
-    """Valeur attendue (EUR, signée, du point de vue de la position) : couverture aux settlements + résidu sur la HPFC."""
+    """Valeur attendue (EUR, signée, du point de vue de la position) : couverture aux settlements + résidu sur la
+    HPFC."""
     px = mkt.price
     hedge_value = float(h.table["hedge value €"].sum()) if len(h.table) else 0.0
     resid_value = float((h.residual * px).sum())

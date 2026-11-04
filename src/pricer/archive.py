@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -67,7 +67,7 @@ def save_quote(mkt: Market, q: Quote, label: str, root: Path = PRICINGS, overwri
     record = {
         "label": label, "product": q.product.name, "physical": q.product.physical,
         "side": q.side,
-        "archived_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "archived_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "volume_mwh": q.volume, "fair_price": q.fair_price, "offer_price": q.price,
         "margin": {"eur": q.margin.eur, "rule": q.margin.rule, **q.margin.detail},
         "risk": {"cost_eur": q.risk.cost, "sigma_eur": q.risk.sigma},
@@ -79,6 +79,8 @@ def save_quote(mkt: Market, q: Quote, label: str, root: Path = PRICINGS, overwri
         "curve": {"method": mkt.meta.get("method"), "code_version": mkt.meta.get("code_version"),
                   "hours": len(mkt.curve), "from": str(mkt.first_day), "to": str(mkt.last_day)},
         "power_hpfc": commit_info(mkt.hpfc_repo) if mkt.hpfc_repo else None,
+        "power_hpfc_data": commit_info(mkt.hpfc_repo / "data")
+        if mkt.hpfc_repo and (mkt.hpfc_repo / "data" / ".git").exists() else None,
         "pricer": commit_info(REPO) if (REPO / ".git").exists() else None,
     }
     (out / "pricing.json").write_text(json.dumps(_clean(record), indent=2, ensure_ascii=False, default=str),

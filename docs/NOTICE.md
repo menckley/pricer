@@ -37,12 +37,14 @@ exemple un producteur) ; **MW < 0 = on la vend** (vente au client). Les prix son
 
 ```mermaid
 flowchart LR
-    subgraph HPFC[power-hpfc]
-        DATA[(data/ : HPFC, settlements,<br/>spot, options, €STR)]
+    subgraph HDATA[power-hpfc-data · privé]
+        DATA[(HPFC, settlements,<br/>spot, options, €STR)]
+    end
+    subgraph HPFC[power-hpfc · public]
         HPKG[paquet hpfc<br/>lecture de l'archive]
         APP[application Streamlit]
     end
-    subgraph PRICER[pricer]
+    subgraph PRICER[pricer · public]
         LIB[src/pricer]
         CFG[config/pricer.yaml<br/>config/marge.yaml]
         J[(pricings/ : journal)]
@@ -50,7 +52,8 @@ flowchart LR
     ECB[(API BCE €STR)]
     SETTL[settlements-eex<br/>autonome]
 
-    DATA --> HPKG --> LIB
+    DATA -- "clone dans<br/>power-hpfc/data" --> HPKG --> LIB
+    DATA -- "téléchargé<br/>(DATA_REPO_TOKEN)" --> APP
     ECB --> LIB
     CFG --> LIB
     LIB -- "code téléchargé<br/>(PRICER_TOKEN)" --> APP
@@ -58,7 +61,8 @@ flowchart LR
 ```
 
 - **Ce que le pricer prend dans power-hpfc.** `Market.load(chemin du clone power-hpfc)` importe le paquet
-  `hpfc` installé depuis ce clone (`pip install -e`). Il vérifie que c'est bien le même dossier, puis lit :
+  `hpfc` installé depuis ce clone (`pip install -e`). Il vérifie que c'est bien le même dossier, puis lit dans
+  `power-hpfc/data/`, qui est un clone du dépôt privé `menckley/power-hpfc-data` :
   - la **HPFC** de la dernière séance (ou d'une date donnée) et ses métadonnées ;
   - les **settlements EEX** de cette séance ;
   - l'historique **spot day-ahead** ENTSO-E ;
@@ -67,7 +71,10 @@ flowchart LR
   - le **journal €STR**.
 
   La définition du peak et la tolérance de reproduction viennent de `power-hpfc/config/FR.yaml`. Le pricer ne
-  télécharge lui-même que l'€STR (API BCE).
+  télécharge lui-même que l'€STR (API BCE). Avec `sync=True`, `Market.load` fait d'abord un `git pull --ff-only` du
+  clone power-hpfc et du clone de données, et refuse si `data/` a été modifié localement (`market.sync_repo`).
+- **Dans l'application en ligne**, `data/` est l'archive du dépôt de données téléchargée par l'application
+  (`power-hpfc/app/data_sync.py`) : le pricer le lit de la même façon.
 - **Qui l'utilise.** L'application de power-hpfc télécharge le code de ce dépôt (secret `PRICER_TOKEN`) et écrit
   chaque pricing enregistré dans `pricings/` par l'API GitHub. En local, le notebook `notebooks/pricer.ipynb`
   utilise le formulaire `pricer.ui`.
@@ -616,7 +623,7 @@ Ils sont affichés sous le résultat et enregistrés dans le journal :
   - position heure par heure (parquet) ;
   - construction du prix, couverture, risque par mois et échantillons, financement, scénarios, prime de niveau
     par mois, RMSE par horizon du proxy, index par mois, jambes et nappe des options ;
-  - `pricing.json` avec les commits de power-hpfc et du pricer.
+  - `pricing.json` avec les commits de power-hpfc, de son dépôt de données et du pricer.
 - **Traçabilité** : chaque pricing garde l'empreinte SHA-256 de `pricer.yaml` et de `marge.yaml`
   (`hash_pricer`, `hash_margin`), la version du pricer et le commit du code qui a produit la courbe.
 

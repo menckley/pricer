@@ -6,11 +6,11 @@ Rien n'est approché : une donnée absente ou incohérente arrête le calcul.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from functools import cached_property
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -32,14 +32,27 @@ def commit_info(repo: Path) -> dict:
     return {"commit": r.stdout.strip() or None, "modifications_locales": bool(git(repo, "status", "--porcelain"))}
 
 
-def sync_repo(repo: Path) -> int:
-    """git pull --ff-only de power-hpfc ; refuse si data/ a été modifié localement. Renvoie le nombre de commits récupérés."""
-    if git(repo, "status", "--porcelain", "--", "data"):
-        raise RuntimeError(f"des fichiers de data/ sont modifiés localement dans {repo} : les annuler avant de synchroniser")
+def _pull(repo: Path) -> int:
     git(repo, "fetch", "--quiet")
     behind = int(git(repo, "rev-list", "--count", "HEAD..@{u}"))
     if behind:
         git(repo, "pull", "--ff-only", "--quiet")
+    return behind
+
+
+def sync_repo(repo: Path) -> int:
+    """git pull --ff-only de power-hpfc et de son archive de données. data/ est un clone du dépôt privé
+    power-hpfc-data (sinon, ancienne organisation : un dossier suivi par power-hpfc). Refuse si data/ a été modifié
+    localement. Renvoie le nombre de commits récupérés."""
+    data = Path(repo) / "data"
+    nested = (data / ".git").exists()
+    dirty = git(data, "status", "--porcelain") if nested else git(repo, "status", "--porcelain", "--", "data")
+    if dirty:
+        raise RuntimeError(f"des fichiers de data/ sont modifiés localement dans {repo} : "
+                           "les annuler avant de synchroniser")
+    behind = _pull(repo)
+    if nested:
+        behind += _pull(data)
     return behind
 
 
@@ -167,7 +180,7 @@ class Market:
 
     # ------------------------------------------------------------------ chargement
     @classmethod
-    def load(cls, hpfc_repo: str | Path, market: str = "FR", pricing_date="latest", sync: bool = True) -> "Market":
+    def load(cls, hpfc_repo: str | Path, market: str = "FR", pricing_date="latest", sync: bool = True) -> Market:
         """Charge la courbe et les settlements archivés par power-hpfc (clone local)."""
         repo = Path(hpfc_repo).expanduser()
         if not (repo / "pyproject.toml").exists():

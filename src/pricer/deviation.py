@@ -24,11 +24,10 @@ jour par power-hpfc dans data/accuracy/) quand l'archive des courbes sera assez 
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date
 from statistics import NormalDist
-
-import math
 
 import numpy as np
 import pandas as pd

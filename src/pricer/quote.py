@@ -19,11 +19,20 @@ import numpy as np
 import pandas as pd
 
 from pricer import rates
-from pricer.deviation import (LEVEL_METHODS, METHOD, DeviationModel, DeviationResult, build_model,
-                              market_premium)
+from pricer.deviation import LEVEL_METHODS, METHOD, DeviationModel, DeviationResult, build_model, market_premium
 from pricer.deviation import deviation_premium as _persistence
-from pricer.hedging import (FULL_DA, LISTED, STRATEGIES, Hedge, full_da_hedge, hedge, hedge_summary, level_open,
-                            listed_contract, listed_hedge)
+from pricer.hedging import (
+    FULL_DA,
+    LISTED,
+    STRATEGIES,
+    Hedge,
+    full_da_hedge,
+    hedge,
+    hedge_summary,
+    level_open,
+    listed_contract,
+    listed_hedge,
+)
 from pricer.market import Market
 from pricer.products import Product, require_on_grid
 from pricer.risk import RiskResult, history_bounds, residual_risk
@@ -407,7 +416,8 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
 
     context = {"market": mkt.name, "pricing date": str(mkt.pricing_date), "strategy requested": strategy,
                "strategy selected": chosen,
-               "spot history": f"{spot.index[0].tz_convert(mkt.tz).date()} → {spot.index[-1].tz_convert(mkt.tz).date()}",
+               "spot history": f"{spot.index[0].tz_convert(mkt.tz).date()} → "
+                               f"{spot.index[-1].tz_convert(mkt.tz).date()}",
                "confidence": s.confidence, "seasonal window ± months": s.window, "month correlation": s.correlation,
                "EEX fee €/MWh": s.eex_fee, "day-ahead fee €/MWh": s.epex_fee,
                "fin-to-phys conversion €/MWh": s.conversion_fee if p.physical else None,

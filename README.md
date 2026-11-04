@@ -19,12 +19,15 @@ comme telle (voir plus bas).
 
 ## Installation
 
-Les dépôts `power-hpfc` et `pricer` sont côte à côte, `power-hpfc` déjà installé en mode éditable :
+Les dépôts `power-hpfc` et `pricer` sont côte à côte. `power-hpfc` est installé en mode éditable et son archive
+`data/` est un clone du dépôt privé `menckley/power-hpfc-data` (voir le README de power-hpfc, « Données ») :
 
 ```bash
-cd ~/Documents/2-Coding/python/GitHub
-../envir_lib/bin/python -m pip install -e "pricer[notebook,dev]"
-cd pricer && ../../envir_lib/bin/python -m pytest -q
+git clone https://github.com/menckley/power-hpfc.git
+git clone https://github.com/menckley/power-hpfc-data.git power-hpfc/data     # accès au dépôt privé requis
+git clone https://github.com/menckley/pricer.git
+python -m pip install -e power-hpfc -e "pricer[notebook,dev]"
+cd pricer && python -m pytest -q          # tests hors ligne, sur un marché synthétique : aucune donnée requise
 ```
 
 Avant le premier pricing, renseigner les paramètres à `null` de `config/pricer.yaml` (frais EEX et day-ahead,
@@ -35,8 +38,8 @@ ceux qui manquent.
 
 `notebooks/pricer.ipynb` :
 
-1. **Données** : synchronise power-hpfc avec GitHub (`git pull --ff-only`, refus si `data/` est modifié
-   localement), charge la dernière courbe, vérifie qu'elle reproduit tous les settlements de la séance, charge le
+1. **Données** : synchronise power-hpfc et son archive `data/` avec GitHub (`git pull --ff-only` des deux clones,
+   refus si `data/` est modifié localement), charge la dernière courbe, vérifie qu'elle reproduit tous les settlements de la séance, charge le
    spot historique.
 2. **Formulaire** : side (sell au client / buy à une contrepartie), settlement (physical delivery / financial
    swap), product, période, MW, hedging (auto ou un scénario imposé, dont Full day-ahead), margin, puis **Price**
@@ -232,7 +235,8 @@ volatilité réalisée jusqu'à l'échéance (à ajouter dans power-hpfc quand d
 ## Application en ligne
 
 Le pricer est utilisé par l'application Streamlit du dépôt `power-hpfc` (page d'accueil **Pricer**, page
-**Pricing history**). L'application télécharge ce dépôt avec le secret `PRICER_TOKEN` (jeton *fine-grained* limité à
+**Pricing history**), qui lit les données de marché du dépôt privé `power-hpfc-data`. L'application télécharge ce
+dépôt avec le secret `PRICER_TOKEN` (jeton *fine-grained* limité à
 `menckley/pricer`, **Contents : Read and write** : lecture du code, écriture du journal) et recharge le code moins de
 5 minutes après un push qui modifie `src/` ou `config/`. Un 403 « Resource not accessible by personal access token »
 à l'archivage = jeton en lecture seule.
@@ -398,3 +402,8 @@ Ordre indicatif : A (fiabiliser ce qui existe) avant B et C (nouveaux produits),
   ceux qui manquent), dont la section `deviation`.
 - Vérifier que le jeton `PRICER_TOKEN` n'a pas expiré (GitHub → Settings → Developer settings → Fine-grained tokens).
 - Regarder la page **HPFC accuracy** : nombre de mois livrés par horizon, pour savoir quand faire A1.
+
+## Licence
+
+Code sous licence [MIT](LICENSE). Les données de marché ne sont pas incluses : elles sont dans le dépôt privé
+`power-hpfc-data`.

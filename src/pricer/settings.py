@@ -63,7 +63,7 @@ class Settings:
     hash_margin: str = ""
 
     @classmethod
-    def load(cls, config_dir: str | Path = CONFIG_DIR) -> "Settings":
+    def load(cls, config_dir: str | Path = CONFIG_DIR) -> Settings:
         d = Path(config_dir)
         p, h1 = _read(d / "pricer.yaml")
         m, h2 = _read(d / "marge.yaml")
@@ -113,10 +113,10 @@ class Settings:
             errors.append("risque : correlation_mois dans [0 ; 1]")
         if self.window < 0 or self.window > 5:
             errors.append("risque : fenetre_mois entre 0 et 5")
-        for name in ("eex_fee", "epex_fee", "conversion_fee", "liquidity_threshold_mw", "liquidity_eur_mwh_per_mw", "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct",
-                     "margin_index_base", "margin_index_per_year", "margin_index_floor",
-                     "option_fee", "option_vol_premium_pts", "margin_option_base", "margin_option_floor",
-                     "odd_lot_eur_mwh"):
+        for name in ("eex_fee", "epex_fee", "conversion_fee", "liquidity_threshold_mw", "liquidity_eur_mwh_per_mw",
+                     "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct", "margin_index_base",
+                     "margin_index_per_year", "margin_index_floor", "option_fee", "option_vol_premium_pts",
+                     "margin_option_base", "margin_option_floor", "odd_lot_eur_mwh"):
             v = getattr(self, name)
             if v is not None and float(v) < 0:
                 errors.append(f"{name} négatif")
@@ -126,7 +126,7 @@ class Settings:
         for a, b in self.deviation_excluded or ():
             if not (isinstance(a, date) and isinstance(b, date) and a <= b):
                 errors.append("deviation : periodes_exclues = liste de [début, fin] (dates AAAA-MM-JJ)")
-        if self.deviation_method is not None and self.deviation_method not in ("persistance", "implicite", "historique"):
+        if self.deviation_method not in (None, "persistance", "implicite", "historique"):
             errors.append("deviation : methode « persistance », « implicite » ou « historique »")
         if self.risk_charging is not None and self.risk_charging not in ("quantile", "cout_du_capital"):
             errors.append("risque : facturation « quantile » ou « cout_du_capital »")
@@ -162,7 +162,8 @@ class Settings:
         if need_financing and self.spread_bp is None:
             out.append("config/pricer.yaml → financement.spread_bp")
         if not manual_margin:
-            for key, v in (("base_eur_mwh", self.margin_index_base), ("duree_eur_mwh_par_an", self.margin_index_per_year),
+            for key, v in (("base_eur_mwh", self.margin_index_base),
+                           ("duree_eur_mwh_par_an", self.margin_index_per_year),
                            ("plancher_eur", self.margin_index_floor)):
                 if v is None:
                     out.append(f"config/marge.yaml → indexation.{key}")

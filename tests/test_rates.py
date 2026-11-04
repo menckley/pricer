@@ -99,8 +99,10 @@ def test_fallback_to_archive_is_flagged():
 
 
 def test_quote_shows_archive_source():
-    import pandas as pd
     from dataclasses import replace
+
+    import pandas as pd
+
     from pricer.indexation import quote_indexed
     from pricer.products import block
     from tests.helpers import market, settings

@@ -7,6 +7,8 @@ name = "pricer"
 version = "0.10.0"
 description = "Pricer de produits structurés électricité France, sur la HPFC et les settlements de power-hpfc"
 requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Clément Corve"}]
 # power-hpfc doit être installé séparément depuis son clone local (pip install -e power-hpfc)
 dependencies = [
     "numpy>=1.26",
@@ -25,3 +27,12 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["B905", "E731"]   # zip() sans strict= : comportement inchangé ; lambdas nommées dans les tests

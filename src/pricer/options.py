@@ -40,10 +40,10 @@ def easter(y: int) -> date:
     g = (b - f + 1) // 3
     h = (19 * a + b - d - g + 15) % 30
     i, k = c // 4, c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    month = (h + l - 7 * m + 114) // 31
-    return date(y, month, (h + l - 7 * m + 114) % 31 + 1)
+    wd = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * wd) // 451
+    month = (h + wd - 7 * m + 114) // 31
+    return date(y, month, (h + wd - 7 * m + 114) % 31 + 1)
 
 
 def eex_holidays(y: int) -> set[date]:

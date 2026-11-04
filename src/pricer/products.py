@@ -57,7 +57,7 @@ class Product:
             return "mixed"
         return "buy" if self.volume > 0 else "sell"
 
-    def _combine(self, other: "Product", sign: float, sep: str) -> "Product":
+    def _combine(self, other: Product, sign: float, sep: str) -> Product:
         if self.physical != other.physical:
             raise ValueError("on ne combine pas une livraison physique et un swap financier")
         q = self.mw.add(sign * other.mw, fill_value=0.0)
@@ -65,16 +65,16 @@ class Product:
         spec = {"type": "combination", "legs": [self.spec, other.spec], "signs": [1, sign]}
         return Product(f"{self.name} {sep} {other.name}", q, self.physical, spec)
 
-    def __add__(self, other: "Product") -> "Product":
+    def __add__(self, other: Product) -> Product:
         return self._combine(other, 1.0, "+")
 
-    def __sub__(self, other: "Product") -> "Product":
+    def __sub__(self, other: Product) -> Product:
         return self._combine(other, -1.0, "−")
 
-    def __neg__(self) -> "Product":
+    def __neg__(self) -> Product:
         return Product(f"-({self.name})", -self.mw, self.physical, {"type": "scaled", "k": -1, "leg": self.spec})
 
-    def __rmul__(self, k: float) -> "Product":
+    def __rmul__(self, k: float) -> Product:
         return Product(f"{k:g} × {self.name}", k * self.mw, self.physical, {"type": "scaled", "k": k, "leg": self.spec})
 
 

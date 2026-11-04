@@ -118,7 +118,8 @@ def test_full_day_ahead_wins_when_cheapest():
     """Day-ahead gratuit, EEX très cher : le full day-ahead devient le moins cher et est retenu en auto."""
     m = market()
     s = settings(eex_fee=500.0, epex_fee=0.0)
-    p = weekly(m, date(2027, 1, 1), date(2027, 1, 31), 1, grid_from_hours(range(9, 19), range(5)), "buy")   # pas le Peak coté
+    # pas le Peak coté
+    p = weekly(m, date(2027, 1, 1), date(2027, 1, 31), 1, grid_from_hours(range(9, 19), range(5)), "buy")
     q = _quote(m, p, s)
     assert q.context["strategy selected"] == FULL_DA
     assert q.strategies.loc[FULL_DA, "offer price €/MWh"] == pytest.approx(q.strategies["offer price €/MWh"].max())

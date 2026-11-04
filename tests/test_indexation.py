@@ -1,5 +1,5 @@
 """Contrats physiques indexés sur le spot EPEX : « EPEX spot ± spread »."""
-from datetime import date
+from datetime import UTC, date
 
 import pytest
 
@@ -79,13 +79,14 @@ def test_manual_margin_swap_refused_and_parameters():
 def test_journal_and_archive_of_an_indexed_pricing():
     import json
     import tempfile
+    from datetime import datetime
     from pathlib import Path
-    from datetime import datetime, timezone
+
     from pricer.archive import save_quote
     from pricer.journal import pricing_files
     m, s = market(), settings()
     q = _q(m, block(m, date(2027, 1, 1), date(2027, 6, 30), 2, "sell"), s)
-    files, row = pricing_files(m, q, "Client indexé", now=datetime(2026, 10, 27, 12, tzinfo=timezone.utc))
+    files, row = pricing_files(m, q, "Client indexé", now=datetime(2026, 10, 27, 12, tzinfo=UTC))
     rec = json.loads(next(iter(files.values())))
     assert rec["indexation"]["spread €/MWh"] == q.indexation["spread €/MWh"] and len(rec["indexation"]["by_month"]) == 6
     assert row["hedging"] == "EPEX spot indexed (no hedge)"

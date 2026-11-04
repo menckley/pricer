@@ -16,7 +16,7 @@ import csv
 import io
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import requests
 
@@ -46,7 +46,7 @@ def _records(df) -> list:
 
 def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None) -> tuple[dict[str, bytes], dict]:
     """Fichier léger du pricing (chemin dans le dépôt → contenu) et ligne du journal."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     pid = f"{now:%Y%m%dT%H%M%SZ}_{slug(label)[:60]}"
     path = f"pricings/{now:%Y/%m}/{pid}.json"
     days = mkt.day[q.product.mw.index]
@@ -126,7 +126,7 @@ class GitHubArchive:
         return r.content.decode("utf-8")
 
     def push(self, files: dict[str, bytes], row: dict, message: str) -> Archived:
-        for attempt in range(2):
+        for _ in range(2):
             r = self._call("get", f"/git/ref/heads/{self.branch}", ok=(200, 404, 409))
             if r.status_code != 200:
                 raise RuntimeError(f"branche {self.branch} introuvable dans {self.repo} : créer le dépôt avec un "

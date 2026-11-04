@@ -89,7 +89,8 @@ def test_manual_margin_and_missing_parameters():
         _quote(m, p, settings(spread_bp=None))
     with pytest.raises(LookupError):
         _quote(m, p, settings(margin_floor=None))
-    _quote(m, block(m, date(2027, 1, 1), date(2027, 1, 31), 1, "buy"), settings(spread_bp=None))   # pas de financement à l'achat
+    # pas de financement à l'achat
+    _quote(m, block(m, date(2027, 1, 1), date(2027, 1, 31), 1, "buy"), settings(spread_bp=None))
 
 
 def test_mixed_product_refused_and_strategy_comparison():

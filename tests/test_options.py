@@ -1,15 +1,23 @@
 """Options EEX : calendrier, Black-76, nappe, volatilité historique, pricing des structures."""
 import math
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from pricer.options import (black76, build_smile, easter, greeks, historical_vol, implied_vol, is_trading_day,
-                            last_trading_day)
 from pricer.option_quote import option_series, quote_option
+from pricer.options import (
+    black76,
+    build_smile,
+    easter,
+    greeks,
+    historical_vol,
+    implied_vol,
+    is_trading_day,
+    last_trading_day,
+)
 from tests.helpers import PRICING, market, settings
 
 SIGMA = 0.30                     # volatilité des settlements d'options synthétiques
@@ -67,7 +75,8 @@ def test_black76_parity_greeks_implied():
     assert black76(F, K, T, s, False) == pytest.approx(4.601, abs=0.01)                     # Cal-27 réel du 26/10
     g = greeks(F, K, T, s, True)
     h = 1e-4
-    assert g["delta"] == pytest.approx((black76(F + h, K, T, s, True) - black76(F - h, K, T, s, True)) / (2 * h), abs=1e-6)
+    fd_delta = (black76(F + h, K, T, s, True) - black76(F - h, K, T, s, True)) / (2 * h)
+    assert g["delta"] == pytest.approx(fd_delta, abs=1e-6)
     assert g["vega"] == pytest.approx((black76(F, K, T, s + 0.005, True) - black76(F, K, T, s - 0.005, True)), rel=1e-3)
     assert implied_vol(0.0, F, K, T, False) is None
 
@@ -80,7 +89,8 @@ def test_smile_recovers_vol_and_checks():
                      opts[(opts["name"] == "Cal-27") & (opts["session"] == PRICING - timedelta(days=1))])
     near = sm.table[(sm.table["strike"] - F).abs() < 15]
     assert np.allclose(near["vol"], SIGMA, atol=2e-3)                    # arrondi au millième des primes
-    assert sm.checks["put-call parity max residual €/MWh"] <= 0.002 and abs(sm.checks["forward − settlement €/MWh"]) < 0.011
+    assert sm.checks["put-call parity max residual €/MWh"] <= 0.002
+    assert abs(sm.checks["forward − settlement €/MWh"]) < 0.011
     assert sm.checks["calls decreasing in strike"] and sm.checks["calls convex in strike"]
     assert sm.checks["unchanged vs previous session"] is False
     assert any("no traded volume" in w for w in sm.warnings)
@@ -114,7 +124,8 @@ def test_quote_call_sale_and_collar():
     assert set(option_series(m)["name"]) == {"Cal-27", "Q2-27"}
     q = quote_option(m, "call", "Cal-27", 1.0, "sell", s, strike=130.0)
     leg = q.option["legs"].iloc[0]
-    assert leg["EEX vol %"] == pytest.approx(30, abs=0.3) and leg["vol charged %"] == pytest.approx(leg["EEX vol %"] + 2)
+    assert leg["EEX vol %"] == pytest.approx(30, abs=0.3)
+    assert leg["vol charged %"] == pytest.approx(leg["EEX vol %"] + 2)
     V = q.volume
     assert V == 8760
     assert q.price == pytest.approx(leg["premium charged €/MWh"] + (0.01 * V + max(0.05 * V, 50)) / V)
@@ -136,15 +147,16 @@ def test_quote_call_sale_and_collar():
 def test_option_quote_journal_and_archive():
     import json
     import tempfile
-    from datetime import datetime, timezone
+    from datetime import datetime
     from pathlib import Path
+
     from pricer.archive import save_quote
     from pricer.journal import pricing_files
     m, s = option_market(n_hist=30), settings(option_fee=0.01, option_vol_premium_pts=2.0, option_min_returns=60,
                                                margin_option_base=0.05, margin_option_floor=50.0)
     q = quote_option(m, "put", "Q2-27", 1.0, "buy", s, strike=90.0)
     assert "not available" in q.option["comparison"]["historical vol"]
-    files, row = pricing_files(m, q, "Floor test", now=datetime(2026, 10, 28, 9, tzinfo=timezone.utc))
+    files, row = pricing_files(m, q, "Floor test", now=datetime(2026, 10, 28, 9, tzinfo=UTC))
     rec = json.loads(next(iter(files.values())))
     assert rec["option"]["series"] == "Q2-27" and len(rec["option"]["legs"]) == 1
     with tempfile.TemporaryDirectory() as tmp:
