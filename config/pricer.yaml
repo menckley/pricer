@@ -32,7 +32,6 @@ liquidite:
   prime_lot_incomplet_eur_mwh: 0.10
 
 deviation:
-  methode: implicite
   methode: persistance
   fenetre_jours: 30
   fenetre_jour_du_mois: 7
