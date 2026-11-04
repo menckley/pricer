@@ -19,7 +19,7 @@ import pandas as pd
 
 from pricer import rates
 from pricer.deviation import METHOD, DeviationModel, DeviationResult, build_model, deviation_premium
-from pricer.hedging import (FULL_DA, LISTED, STRATEGIES, Hedge, full_da_hedge, hedge, hedge_summary,
+from pricer.hedging import (FULL_DA, LISTED, STRATEGIES, Hedge, full_da_hedge, hedge, hedge_summary, level_open,
                             listed_contract, listed_hedge)
 from pricer.market import Market
 from pricer.products import Product, require_on_grid
@@ -182,8 +182,15 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
             h = hedge(mkt, p, strat)
             hv = hedge_summary(mkt, p, h)
             rk = residual_risk(mkt, h, spot, s.confidence, s.window, s.correlation)
-            uncovered = p.mw[~h.covered[p.mw.index]]                 # mois en cours : aucun produit coté
-            candidates[strat] = (h, hv, rk, deviation_premium(mkt, uncovered, dev_model, s.confidence))
+            # niveau non couvert : mois en cours (aucun produit coté) et, pour « Peak only », l'offpeak livré
+            try:
+                dv = deviation_premium(mkt, level_open(mkt, p, h), dev_model, s.confidence)
+            except LookupError as e:                                 # horizon trop long pour l'historique
+                if not STRATEGIES[strat].get("peak_only") or strategy == strat:
+                    raise
+                notes.append(f"{strat} not evaluated: {e}")
+                continue
+            candidates[strat] = (h, hv, rk, dv)
         if s.full_day_ahead or strategy == FULL_DA:
             h = full_da_hedge(mkt, p)
             hv = hedge_summary(mkt, p, h)
@@ -264,6 +271,9 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     if unhedge > 0:
         warnings.append(f"{unhedge:,.0f} MWh sourced in day-ahead without any EEX hedge (current month): "
                         f"their price-level risk is the deviation premium ({METHOD})")
+    if STRATEGIES.get(chosen, {}).get("peak_only") and dv.cost > 0:
+        warnings.append(f"Peak only: the offpeak MWh delivered are not level-hedged; their price-level risk is the "
+                        f"deviation premium ({METHOD})")
     if chosen == FULL_DA:
         warnings.append(f"no EEX hedge: the whole volume's price-level risk is the deviation premium ({METHOD}), "
                         "measured on a naive forecast, larger than the HPFC's real error")

@@ -135,6 +135,8 @@ def test_full_day_ahead_disabled_or_not_measurable():
     q = _quote(m, block(m, date(2028, 9, 10), date(2028, 11, 20), 1, "sell"), settings(deviation_min_months=40))
     assert FULL_DA not in q.strategies.index
     assert any(w.startswith(f"{FULL_DA} not evaluated") for w in q.warnings)
+    assert "Peak only + day-ahead" not in q.strategies.index
+    assert any(w.startswith("Peak only + day-ahead not evaluated") for w in q.warnings)
 
 
 def test_deviation_parameters_required_for_profiled_products_only():

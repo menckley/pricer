@@ -75,8 +75,10 @@ coût de risque nul ; aucune stratégie n'est proposée. Les stratégies ne serv
 Le découpage le plus fin en produits cotés à la fois en Base et en Peak : les mois si les trois mois du
 trimestre sont cotés, sinon le trimestre, sinon l'année. Sur chaque produit, MW Base = MWh offpeak ÷ heures
 offpeak et MW Peak = MWh peak ÷ heures peak − MW Base : le résidu a un volume nul sur chaque bloc.
-Quatre scénarios sont évalués à chaque pricing : `Base+Peak monthly` (mois cotés, sinon trimestre, sinon année),
-`Base+Peak quarterly` (trimestre, sinon année), `Base only monthly` et **`Full day-ahead`** (aucun contrat EEX :
+Cinq scénarios sont évalués à chaque pricing : `Base+Peak monthly` (mois cotés, sinon trimestre, sinon année),
+`Base+Peak quarterly` (trimestre, sinon année), `Base only monthly`, **`Peak only + day-ahead`** (seuls les MWh peak
+sont couverts, par du Peak ; tout l'offpeak livré est acheté ou revendu en day-ahead, son risque de niveau est la
+prime de déviation ; non évalué si un horizon n'est pas mesurable) et **`Full day-ahead`** (aucun contrat EEX :
 tout le volume est acheté ou revendu en day-ahead ; frais day-ahead et conversion sur tout le volume, pas de prime
 de liquidité ; risque = forme (même méthode que le résidu) + prime de déviation sur tout le volume). En `auto` (défaut),
 le pricer retient le **moins cher** (risque + déviation + frais + conversion + liquidité + marge) ; à égalité, celui
@@ -84,6 +86,14 @@ qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX. Si un ho
 (historique trop court), le full day-ahead n'est pas évalué et le résultat le signale.
 Les jours restants du mois en cours n'ont pas de produit mois / trimestre / an : ils restent dans le résidu, et leur
 risque de niveau est la prime de déviation à l'horizon 0.
+
+### Volumes de couverture (onglet Hedge de l'application)
+
+Pour la stratégie retenue, ou n'importe quelle autre stratégie évaluée, et pour toute la période ou un mois :
+volumes livrés, MWh EEX Base et Peak, achats et reventes en day-ahead ; puis deux grilles en semaine type (MW moyens
+par jour de semaine et heure) : heures livrées par source (EEX Base, EEX Peak, day-ahead ; couleur : EEX seul, EEX
+et day-ahead, day-ahead seul) et volumes de couverture compensés en day-ahead hors livraison (reventes pour une
+vente, achats pour un achat). Calcul : `hedging.coverage` et `hedging.typical_week`.
 
 ### Coût de risque du résidu
 

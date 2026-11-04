@@ -102,7 +102,7 @@ def test_mixed_product_refused_and_strategy_comparison():
         _quote(m, a + b, s)
     q = _quote(m, block(m, date(2027, 1, 10), date(2027, 3, 20), 2, "sell", "Peak"), s)
     assert set(q.strategies.index) == {"Base+Peak monthly", "Base+Peak quarterly", "Base only monthly",
-                                       "Full day-ahead"}
+                                       "Peak only + day-ahead", "Full day-ahead"}
     assert q.strategies.loc["Base+Peak monthly", "risk cost €"] < q.strategies.loc["Base only monthly", "risk cost €"]
 
 

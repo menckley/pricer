@@ -20,6 +20,9 @@ STRATEGIES = {
     "Base+Peak monthly": {"levels": ("mois", "trimestre", "année"), "peak": True},
     "Base+Peak quarterly": {"levels": ("trimestre", "année"), "peak": True},
     "Base only monthly": {"levels": ("mois", "trimestre", "année"), "peak": False},
+    # Peak seul : les MWh peak de chaque produit coté sont couverts, tout l'offpeak livré reste en day-ahead
+    # (risque de niveau porté par la prime de déviation)
+    "Peak only + day-ahead": {"levels": ("mois", "trimestre", "année"), "peak": True, "peak_only": True},
 }
 KIND_LEVEL = {"month": "mois", "quarter": "trimestre", "year": "année"}
 
@@ -93,7 +96,11 @@ def hedge(mkt: Market, p: Product, strategy: str = "Base+Peak monthly") -> Hedge
         v_pk, v_op = float(q[pk].sum()), float(q[op].sum())
         if v_pk == 0 and v_op == 0:
             continue
-        if spec["peak"]:
+        if spec.get("peak_only"):
+            base, peak = 0.0, v_pk / pk.sum()
+            if peak == 0:
+                continue
+        elif spec["peak"]:
             base = v_op / op.sum()
             peak = v_pk / pk.sum() - base
         else:
@@ -123,6 +130,60 @@ def hedge_summary(mkt: Market, p: Product, h: Hedge) -> dict:
             "day-ahead surplus to sell MWh": h.surplus_mwh,
             "day-ahead shortfall to buy MWh": h.deficit_mwh,
             "unhedgeable MWh (no quoted month/quarter/year)": float(p.mw[~h.covered[p.mw.index]].abs().sum())}
+
+
+def level_open(mkt: Market, p: Product, h: Hedge) -> pd.Series:
+    """MW du produit dont le niveau de prix n'est couvert par aucun contrat EEX : heures sans produit coté
+    (mois en cours) et, pour « Peak only », toutes les heures offpeak livrées."""
+    mask = ~h.covered[p.mw.index]
+    if STRATEGIES.get(h.strategy, {}).get("peak_only"):
+        mask |= ~mkt.is_peak[p.mw.index]
+    return p.mw[mask]
+
+
+def coverage(mkt: Market, p: Product, h: Hedge) -> pd.DataFrame:
+    """Couverture heure par heure, en MW positifs dans le sens du deal :
+    delivered (livré au client ou reçu de la contrepartie), EEX Base, EEX Peak (MW traités sur EEX en sens
+    inverse du deal ; négatif = même sens), day-ahead purchase et day-ahead resale (résidu r = q − h : r < 0 acheté,
+    r > 0 revendu). Heures sans livraison ni couverture omises."""
+    sgn = -1.0 if p.side == "sell" else 1.0
+    idx = mkt.curve.index
+    q = p.mw.reindex(idx, fill_value=0.0)
+    base = pd.Series(0.0, index=idx)
+    peak = pd.Series(0.0, index=idx)
+    t = h.table
+    if len(t) and "Base MW" in t.columns:
+        for r in t.itertuples():
+            m = (mkt.day >= r.start) & (mkt.day <= r.end)
+            base[m] += t.loc[r.Index, "Base MW"]
+            peak[m & mkt.is_peak] += t.loc[r.Index, "Peak MW"]
+    elif len(t) and "MW" in t.columns:                     # contrat coté couvert par lui-même
+        name = str(t.index[0])
+        target = peak if name.startswith("Peak") else base
+        target[h.hedged != 0] = h.hedged[h.hedged != 0]
+    resid = q - (base + peak)
+    out = pd.DataFrame({"delivered MW": sgn * q, "EEX Base MW": sgn * base, "EEX Peak MW": sgn * peak,
+                        "day-ahead purchase MW": (-resid).clip(lower=0), "day-ahead resale MW": resid.clip(lower=0)})
+    out = out[(out.abs() > 1e-9).any(axis=1)]
+    return out
+
+
+def typical_week(mkt: Market, cov: pd.DataFrame, column: str, month: str | None = None) -> pd.DataFrame:
+    """Semaine type (24 heures × 7 jours) : moyenne de `column` sur chaque (jour de semaine, heure locale), sur la
+    période couverte par `cov` ou sur un mois (AAAA-MM). Les jours sans aucune ligne comptent pour 0."""
+    days = mkt.day[cov.index]
+    first, last = days.min(), days.max()
+    span = (mkt.day >= first) & (mkt.day <= last)
+    if month is not None:
+        span &= mkt.month == month
+    idx = mkt.curve.index[span.to_numpy()]
+    s = cov[column].reindex(idx, fill_value=0.0)
+    loc = idx.tz_convert(mkt.tz)
+    g = pd.DataFrame({"v": s.to_numpy(), "h": loc.hour, "d": loc.weekday}).groupby(["h", "d"])["v"].mean()
+    out = g.unstack("d").reindex(index=range(24), columns=range(7)).fillna(0.0)
+    out.index = [f"{h:02d}h-{h + 1:02d}h" for h in range(24)]
+    out.columns = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    return out
 
 
 LISTED = "Listed EEX contract"
