@@ -1,5 +1,7 @@
 # pricer
 
+> **Notice détaillée** — chaque calcul, chaque paramètre et les dépendances entre les dépôts : [docs/NOTICE.md](docs/NOTICE.md)
+
 Pricer de produits structurés électricité France, construit uniquement sur des données gratuites et archivées :
 
 - la **HPFC** horaire, les **settlements EEX** et le **spot day-ahead** historique archivés par
