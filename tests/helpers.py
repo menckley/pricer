@@ -87,6 +87,6 @@ def settings(**over) -> Settings:
                 option_fee=None, option_vol_premium_pts=None, option_min_returns=None,
                 margin_option_base=None, margin_option_floor=None,
                 deviation_method="persistance", risk_charging="quantile", cost_of_capital=None,
-                option_vol_source="implicite")
+                option_vol_source="implicite", lot_mw=1.0, odd_lot_eur_mwh=0.0)
     base.update(over)
     return Settings(**base)

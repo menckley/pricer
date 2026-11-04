@@ -28,6 +28,8 @@ couverture:
 liquidite:
   seuil_mw: 2         # MW traités sur un contrat sans prime
   eur_mwh_par_mw: 0.15    # €/MWh ajoutés par MW au-delà du seuil
+  lot_mw: 1
+  prime_lot_incomplet_eur_mwh: 0.10
 
 deviation:
   methode: implicite

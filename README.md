@@ -95,6 +95,24 @@ par jour de semaine et heure) : heures livrées par source (EEX Base, EEX Peak, 
 et day-ahead, day-ahead seul) et volumes de couverture compensés en day-ahead hors livraison (reventes pour une
 vente, achats pour un achat). Calcul : `hedging.coverage` et `hedging.typical_week`.
 
+### Exposition au spot de chaque stratégie
+
+Pour chaque scénario (tableau Scenarios) et pour la stratégie affichée (bloc Hedge coverage) : MWh achetés et
+vendus en day-ahead, exposition = (achetés + vendus) / volume du deal, et P&L si le day-ahead réalisé est 10 €/MWh
+au-dessus de la HPFC sur toutes ces heures = 10 × (vendus − achetés). Un déplacement uniforme du niveau ne touche
+que le net ; le prix de ces heures précises (forme, pics, prix négatifs) touche les deux côtés : l'exposition peut
+changer fortement le résultat d'une stratégie. Elle est prise en compte dans le coût de risque du résidu et la prime
+de niveau day-ahead ; un avertissement la rappelle dans chaque pricing.
+
+### Prime de lot incomplet (`liquidite.lot_mw`, `liquidite.prime_lot_incomplet_eur_mwh`)
+
+Un future EEX se traite par lots entiers de 1 MW (EEX Contract Specifications, § 1.1.7 : « Minimum lot size: 1
+contract or a multiple thereof », 1 contrat = 1 MW). Une couverture de 2,5 MW se fait en 2 lots à l'écran, et le
+demi-MW restant se source en gré à gré ou par un broker, à un prix moins bon. Pour chaque contrat Base et Peak :
+MWh hors lot entier = (|MW| − multiple de `lot_mw` inférieur) × heures du contrat ; prime = MWh hors lot entier ×
+`prime_lot_incomplet_eur_mwh`. La prime entre dans la comparaison des scénarios (un scénario aux volumes
+fractionnaires est pénalisé) et dans le prix (ligne « Odd-lot premium »).
+
 ### Coût de risque du résidu
 
 Pour chaque mois livré, le résidu est résumé par sa semaine type (MW moyen par jour de semaine × heure). Cette

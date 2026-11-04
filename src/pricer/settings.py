@@ -49,6 +49,8 @@ class Settings:
     risk_charging: str | None = None               # quantile | cout_du_capital
     cost_of_capital: float | None = None           # taux annuel du capital immobilisé (cout_du_capital)
     option_vol_source: str | None = None           # implicite | historique | prudente (prime des options)
+    lot_mw: float | None = None                    # taille d'un lot EEX (1 contrat = 1 MW)
+    odd_lot_eur_mwh: float | None = None           # prime par MWh EEX hors lot entier
     margin_index_base: float | None = None         # marge des contrats indexés spot (marge.yaml → indexation)
     margin_index_per_year: float | None = None
     margin_index_floor: float | None = None
@@ -76,6 +78,8 @@ class Settings:
                 conversion_fee=p["frais"].get("conversion_fin_phys_eur_mwh"),
                 liquidity_threshold_mw=(p.get("liquidite") or {}).get("seuil_mw"),
                 liquidity_eur_mwh_per_mw=(p.get("liquidite") or {}).get("eur_mwh_par_mw"),
+                lot_mw=(p.get("liquidite") or {}).get("lot_mw"),
+                odd_lot_eur_mwh=(p.get("liquidite") or {}).get("prime_lot_incomplet_eur_mwh"),
                 confidence=float(p["risque"]["confiance"]), window=int(p["risque"]["fenetre_mois"]),
                 correlation=float(p["risque"]["correlation_mois"]),
                 history_start=p["risque"]["historique_debut"], strategy=p["couverture"]["strategie"],
@@ -111,7 +115,8 @@ class Settings:
             errors.append("risque : fenetre_mois entre 0 et 5")
         for name in ("eex_fee", "epex_fee", "conversion_fee", "liquidity_threshold_mw", "liquidity_eur_mwh_per_mw", "margin_base", "margin_per_year", "margin_floor", "margin_shape_pct",
                      "margin_index_base", "margin_index_per_year", "margin_index_floor",
-                     "option_fee", "option_vol_premium_pts", "margin_option_base", "margin_option_floor"):
+                     "option_fee", "option_vol_premium_pts", "margin_option_base", "margin_option_floor",
+                     "odd_lot_eur_mwh"):
             v = getattr(self, name)
             if v is not None and float(v) < 0:
                 errors.append(f"{name} négatif")
@@ -129,6 +134,8 @@ class Settings:
             errors.append("risque : taux_cout_capital entre 0 et 1 (ex. 0.10 pour 10 % par an)")
         if self.option_vol_source is not None and self.option_vol_source not in ("implicite", "historique", "prudente"):
             errors.append("options : volatilite_prime « implicite », « historique » ou « prudente »")
+        if self.lot_mw is not None and not self.lot_mw > 0:
+            errors.append("liquidite : lot_mw strictement positif (EEX : 1 MW)")
         if self.deviation_lookback is not None and self.deviation_lookback < 7:
             errors.append("deviation : fenetre_jours ≥ 7")
         if errors:
@@ -184,6 +191,10 @@ class Settings:
             out.append("config/pricer.yaml → liquidite.seuil_mw")
         if self.liquidity_eur_mwh_per_mw is None:
             out.append("config/pricer.yaml → liquidite.eur_mwh_par_mw")
+        if self.lot_mw is None:
+            out.append("config/pricer.yaml → liquidite.lot_mw")
+        if self.odd_lot_eur_mwh is None:
+            out.append("config/pricer.yaml → liquidite.prime_lot_incomplet_eur_mwh")
         if self.epex_fee is None:
             out.append("config/pricer.yaml → frais.epex_eur_mwh")
         if need_financing and self.spread_bp is None:

@@ -15,6 +15,7 @@ import dataclasses
 from dataclasses import dataclass, field
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 from pricer import rates
@@ -106,6 +107,25 @@ def max_contract_mw(h: Hedge) -> float:
     if "MW" in t.columns:                                  # contrat coté couvert par lui-même
         return float(t["MW"].abs().max())
     return float(pd.concat([t["Base MW"].abs(), (t["Base MW"] + t["Peak MW"]).abs()], axis=1).max(axis=1).max())
+
+
+def odd_lot_mwh(h: Hedge, lot_mw: float) -> float:
+    """MWh EEX qui ne remplissent pas un lot entier : pour chaque contrat (Base, Peak), la part de |MW| au-delà du
+    dernier multiple de `lot_mw` (EEX : lot minimum de 1 contrat de 1 MW), multipliée par les heures du contrat.
+    Ce volume ne se traite pas à l'écran : il est sourcé en gré à gré ou par un broker, à un prix moins bon."""
+    t = h.table
+    if t.empty:
+        return 0.0
+    legs = [("MW", "MWh")] if "MW" in t.columns else [("Base MW", "Base MWh"), ("Peak MW", "Peak MWh")]
+    out = 0.0
+    for mw_col, mwh_col in legs:
+        for mw, mwh in zip(t[mw_col].abs(), t[mwh_col].abs()):
+            if mw < 1e-9:
+                continue
+            odd = mw - lot_mw * np.floor(mw / lot_mw + 1e-9)
+            if odd > 1e-6:
+                out += mwh * odd / mw
+    return float(out)
 
 
 def _da_mwh(hv: dict) -> float:
@@ -201,7 +221,8 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     """Prix d'un deal. `strategy` : « auto » (défaut du config) ou une clé de STRATEGIES.
     En « auto », le scénario retenu est le moins cher (risque, déviation, frais, conversion, liquidité, marge) ;
     à égalité, celui qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX.
-    Prime de liquidité : `eur_mwh_par_mw` × (MW max traités sur un contrat − `seuil_mw`), sur les MWh couverts EEX."""
+    Prime de liquidité : `eur_mwh_par_mw` × (MW max traités sur un contrat − `seuil_mw`), sur les MWh couverts EEX.
+    Prime de lot incomplet : `prime_lot_incomplet_eur_mwh` × MWh EEX hors lot entier (`lot_mw`)."""
     require_on_grid(mkt, p)
     if p.mixed:
         raise ValueError("produit mixte achat / vente : coter chaque sens séparément (un prix par MWh n'a pas de sens)")
@@ -301,16 +322,24 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         mw_max = max_contract_mw(h)
         liq_rate = s.liquidity_eur_mwh_per_mw * max(0.0, mw_max - s.liquidity_threshold_mw)
         liq = liq_rate * hv["EEX hedged MWh"]
+        odd_mwh = odd_lot_mwh(h, s.lot_mw)
+        odd = s.odd_lot_eur_mwh * odd_mwh
         if manual_margin_eur_mwh is not None:
             mg = Margin(manual_margin_eur_mwh * V, "manual", {"€/MWh": manual_margin_eur_mwh, "reason": manual_reason})
         else:
             mg = margin_by_rules(s, V, hv["residual at HPFC €"] if name == LISTED else ref_shape, years)
-        costs = rk.cost + dv.cost + fees + conv + liq + mg.eur
-        evaluated[name] = (h, hv, rk, dv, fees, conv, liq, mg)
+        costs = rk.cost + dv.cost + fees + conv + liq + odd + mg.eur
+        evaluated[name] = (h, hv, rk, dv, fees, conv, liq, odd, mg)
         comp.append({"strategy": name, "EEX contracts": hv["EEX contracts"], "EEX hedged MWh": hv["EEX hedged MWh"],
                      "day-ahead MWh": _da_mwh(hv), "max MW per contract": mw_max, "risk cost €": rk.cost,
                      "deviation premium €": dv.cost,
-                     "fees + conversion €": fees + conv, "liquidity €": liq, "margin €": mg.eur,
+                     "fees + conversion €": fees + conv, "liquidity €": liq, "odd-lot MWh": odd_mwh,
+                     "odd-lot premium €": odd, "margin €": mg.eur,
+                     "day-ahead bought MWh": hv["day-ahead shortfall to buy MWh"],
+                     "day-ahead sold MWh": hv["day-ahead surplus to sell MWh"],
+                     "spot exposure % of volume": 100 * _da_mwh(hv) / V,
+                     "P&L for spot +10 €/MWh €": 10 * (hv["day-ahead surplus to sell MWh"]
+                                                       - hv["day-ahead shortfall to buy MWh"]),
                      "offer price €/MWh": (hv["curve value €"] / sq) + direction * (costs + fin_eur) / V})
     strategies = pd.DataFrame(comp).set_index("strategy")
     if listed is not None:
@@ -319,7 +348,7 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         # le scénario gagnant est le moins cher : coûts les plus bas (risque, frais, conversion, liquidité, marge) ;
         # à égalité, le moins de MWh en day-ahead puis le moins de contrats
         costs_eur = strategies["risk cost €"] + strategies["deviation premium €"] + strategies["fees + conversion €"] \
-            + strategies["liquidity €"] + strategies["margin €"]
+            + strategies["liquidity €"] + strategies["odd-lot premium €"] + strategies["margin €"]
         order = pd.DataFrame({"c": costs_eur.round(6), "da": strategies["day-ahead MWh"].round(6),
                               "n": strategies["EEX contracts"]})
         chosen = order.sort_values(["c", "da", "n"]).index[0]
@@ -328,10 +357,11 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     strategies["selected"] = strategies.index == chosen
     if listed is not None:
         strategies = pd.DataFrame()
-    h, hv, rk, dv, fees, conv, liq, mg = evaluated[chosen]
+    h, hv, rk, dv, fees, conv, liq, odd, mg = evaluated[chosen]
+    odd_mwh = odd_lot_mwh(h, s.lot_mw)
     fair = hv["curve value €"] / sq
 
-    adds = rk.cost + dv.cost + fees + conv + liq + fin_eur + mg.eur
+    adds = rk.cost + dv.cost + fees + conv + liq + odd + fin_eur + mg.eur
     price = fair + direction * adds / V
     sign = "+" if direction > 0 else "−"
     if chosen == FULL_DA:
@@ -348,6 +378,7 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
             (f"{sign} EEX and day-ahead fees", direction * fees),
             (f"{sign} Financial-to-physical conversion", direction * conv),
             (f"{sign} Liquidity premium", direction * liq),
+            (f"{sign} Odd-lot premium ({odd_mwh:,.0f} MWh below a full {s.lot_mw:g} MW EEX lot)", direction * odd),
             (f"{sign} Funding cost", direction * fin_eur),
             (f"{sign} Margin ({mg.rule})", direction * mg.eur),
             ("= Offer price", price * V)]
@@ -355,6 +386,12 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     lines["€/MWh"] = lines["€"] / V
 
     warnings = list(notes) + ([estr_warning] if estr_warning else [])
+    bought, sold = hv["day-ahead shortfall to buy MWh"], hv["day-ahead surplus to sell MWh"]
+    if bought + sold > 1e-6:
+        warnings.append(f"spot exposure: {bought:,.0f} MWh bought and {sold:,.0f} MWh sold in day-ahead "
+                        f"({100 * (bought + sold) / V:.0f} % of the volume). A day-ahead level 10 €/MWh above the "
+                        f"HPFC changes the P&L by {10 * (sold - bought):+,.0f} €; the price of those specific hours "
+                        "(shape, spikes, negative prices) can move the result of a strategy much more")
     unhedge = hv["unhedgeable MWh (no quoted month/quarter/year)"]
     if unhedge > 0:
         warnings.append(f"{unhedge:,.0f} MWh sourced in day-ahead without any EEX hedge (current month): "
@@ -375,6 +412,7 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
                "EEX fee €/MWh": s.eex_fee, "day-ahead fee €/MWh": s.epex_fee,
                "fin-to-phys conversion €/MWh": s.conversion_fee if p.physical else None,
                "liquidity threshold MW": s.liquidity_threshold_mw, "liquidity €/MWh per MW": s.liquidity_eur_mwh_per_mw,
+               "EEX lot MW": s.lot_mw, "odd-lot premium €/MWh": s.odd_lot_eur_mwh,
                "sourcing paid D+": s.sourcing_days, "client pays D+": s.client_days,
                "day count": s.day_count, **rate_ctx,
                "level-risk method": LEVEL_METHODS[level_method] if dev_model else None,
