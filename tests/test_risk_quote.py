@@ -1,7 +1,5 @@
 from datetime import date
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from pricer import rates
@@ -126,7 +124,7 @@ def test_warning_for_unhedgeable_current_month():
     p = block(m, date(2026, 10, 14), date(2026, 11, 30), 1, "sell")
     q = _quote(m, p, s)
     assert q.hedge_values["unhedgeable MWh (no quoted month/quarter/year)"] > 0
-    assert any("without any EEX hedge" in w and "deviation premium" in w for w in q.warnings)
+    assert any("without any EEX hedge" in w and "level premium" in w for w in q.warnings)
     # le risque de niveau du mois en cours est maintenant chiffré : prime de déviation sur octobre seulement
     assert q.deviation.cost > 0 and list(q.deviation.by_month.index) == ["2026-10"]
 

@@ -30,6 +30,7 @@ STRUCTURES = {
     "collar": [("call", +1, "strike_high"), ("put", -1, "strike_low")],   # le client achète le cap, vend le floor
 }
 LABELS = {"call": "Call (cap)", "put": "Put (floor)", "collar": "Collar (long cap / short floor)"}
+VOL_SOURCES = {"implicite": "EEX implied", "historique": "historical", "prudente": "prudent (max sold / min bought)"}
 
 
 def option_series(mkt: Market) -> pd.DataFrame:
@@ -44,7 +45,12 @@ def option_series(mkt: Market) -> pd.DataFrame:
 
 def quote_option(mkt: Market, structure: str, series: str, mw: float, side: str, s: Settings,
                  strike: float | None = None, strike_low: float | None = None, strike_high: float | None = None,
-                 manual_margin_eur_mwh: float | None = None, manual_reason: str = "") -> Quote:
+                 manual_margin_eur_mwh: float | None = None, manual_reason: str = "",
+                 vol_source: str | None = None) -> Quote:
+    """`vol_source` (défaut : options.volatilite_prime) : volatilité de la prime proposée — « implicite »
+    (settlements d'options EEX), « historique » (settlements du future ; refusée si l'archive est trop courte) ou
+    « prudente » (jambe vendue : la plus haute des deux, jambe achetée : la plus basse). Le prix juste affiché
+    reste toujours celui à la volatilité implicite EEX."""
     if structure not in STRUCTURES:
         raise ValueError(f"structure inconnue {structure!r} : {', '.join(STRUCTURES)}")
     if side not in ("sell", "buy"):
@@ -81,6 +87,11 @@ def quote_option(mkt: Market, structure: str, series: str, mw: float, side: str,
 
     F, T = smile.forward, smile.T
     we = -1 if side == "sell" else +1                 # notre position = − position client si on vend la structure
+    vol_source = vol_source or s.option_vol_source
+    if vol_source not in VOL_SOURCES:
+        raise ValueError(f"volatilité de la prime inconnue {vol_source!r} : {', '.join(VOL_SOURCES)}")
+    if vol_source == "historique" and hist["sigma"] is None:
+        raise LookupError(f"volatilité historique non disponible pour {series} : {hist['reason']}")
     vp = s.option_vol_premium_pts / 100
     legs, warnings = [], list(smile.warnings)
     for kind, client_pos, key in STRUCTURES[structure]:
@@ -89,11 +100,19 @@ def quote_option(mkt: Market, structure: str, series: str, mw: float, side: str,
         if source.startswith("flat"):
             warnings.append(f"{kind} K={K:g}: volatility by {source}")
         ours = we * client_pos
-        vol_adj = vol + vp if ours < 0 else max(vol - vp, 1e-6)
+        hs = hist["sigma"]
+        if vol_source == "historique":
+            base_vol = hs
+        elif vol_source == "prudente" and hs is not None:
+            base_vol = max(vol, hs) if ours < 0 else min(vol, hs)
+        else:
+            base_vol = vol
+        vol_adj = base_vol + vp if ours < 0 else max(base_vol - vp, 1e-6)
         px = black76(F, K, T, vol, call)
         g = greeks(F, K, T, vol, call)
         leg = {"leg": f"{kind} {K:g}", "type": kind, "strike": K, "client position": client_pos,
                "our position": ours, "EEX vol %": 100 * vol, "vol source": source, "premium EEX vol €/MWh": px,
+               "vol basis %": 100 * base_vol, "premium vol basis €/MWh": black76(F, K, T, base_vol, call),
                "vol charged %": 100 * vol_adj, "premium charged €/MWh": black76(F, K, T, vol_adj, call),
                **{f"{k} (client)": client_pos * v for k, v in g.items()}}
         if hist["sigma"] is not None:
@@ -111,6 +130,7 @@ def quote_option(mkt: Market, structure: str, series: str, mw: float, side: str,
                                            "strikes": {k: v for k, v in strikes.items() if v is not None}})
     V = p0.abs_volume
     fair = float((legs["client position"] * legs["premium EEX vol €/MWh"]).sum())
+    basis = float((legs["client position"] * legs["premium vol basis €/MWh"]).sum())
     charged = float((legs["client position"] * legs["premium charged €/MWh"]).sum())
     fees = s.option_fee * V * n_legs
     if manual_margin_eur_mwh is not None:
@@ -123,7 +143,8 @@ def quote_option(mkt: Market, structure: str, series: str, mw: float, side: str,
     price = charged + direction * (fees + mg.eur) / V
     sign = "+" if direction > 0 else "−"
     rows = [("Premium at EEX settlement volatility (fair)", fair * V),
-            (f"{sign} Volatility premium ({s.option_vol_premium_pts:g} vol pts)", (charged - fair) * V),
+            (f"Volatility basis: {VOL_SOURCES[vol_source]}", (basis - fair) * V),
+            (f"{sign} Volatility premium ({s.option_vol_premium_pts:g} vol pts)", (charged - basis) * V),
             (f"{sign} EEX option fees", direction * fees), (f"{sign} Margin ({mg.rule})", direction * mg.eur),
             ("= Offer premium (paid by the client if positive)", price * V)]
     lines = pd.DataFrame(rows, columns=["item", "€"]).set_index("item")
@@ -148,6 +169,7 @@ def quote_option(mkt: Market, structure: str, series: str, mw: float, side: str,
     context = {"market": mkt.name, "pricing date": str(mkt.pricing_date), "pricing": OPTION,
                "strategy requested": OPTION, "strategy selected": OPTION, "expiry": str(smile.expiry),
                "volatility": "implied from EEX option settlements of the pricing session",
+               "volatility of the offer premium": VOL_SOURCES[vol_source],
                "vol premium pts": s.option_vol_premium_pts, "option fee €/MWh": s.option_fee,
                "pricer config": s.hash_pricer, "margin config": s.hash_margin}
     return Quote(product, side, V, fair, price, lines, hedge, {}, risk, pd.DataFrame(), mg, pd.DataFrame(),

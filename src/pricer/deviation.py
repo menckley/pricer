@@ -25,8 +25,10 @@ jour par power-hpfc dans data/accuracy/) quand l'archive des courbes sera assez 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from statistics import NormalDist
+
+import math
 
 import numpy as np
 import pandas as pd
@@ -34,6 +36,8 @@ import pandas as pd
 from pricer.market import Market
 
 METHOD = "persistence proxy (conservative)"
+LEVEL_METHODS = {"persistance": METHOD, "implicite": "EEX implied volatility",
+                 "historique": "historical volatility of the futures"}
 BLOCKS = ("Peak", "Offpeak")
 
 
@@ -216,3 +220,54 @@ def deviation_premium(mkt: Market, mw: pd.Series, model: DeviationModel, confide
     by_month = pd.DataFrame(rows).set_index("month")
     sigma = float(by_month["σ €"].sum())
     return DeviationResult(z * sigma, sigma, confidence, by_month)
+
+
+def _month_mid(month: str) -> date:
+    y, m = int(month[:4]), int(month[5:7])
+    nxt = date(y + (m == 12), m % 12 + 1, 1)
+    first = date(y, m, 1)
+    return first + (nxt - first) / 2
+
+
+def market_premium(mkt: Market, mw: pd.Series, vol_for_month, confidence: float,
+                   fallback: DeviationModel | None, method: str) -> DeviationResult:
+    """Prime de niveau à partir d'une volatilité de marché (implicite EEX ou historique des futures).
+
+    Pour chaque mois livré : écart relatif du niveau d'ici la livraison = √(exp(σ² τ) − 1), τ = délai jusqu'au
+    milieu du mois (années) ; σ_mois = (|valeur Peak| + |valeur Offpeak|) × écart (options et futures Base : même
+    volatilité pour les deux blocs) ; σ = somme des mois (parfaitement corrélés) ; prime = z × σ. Un mois sans
+    volatilité de marché disponible prend le proxy de persistance (`fallback`), signalé dans la colonne source."""
+    mw = mw[mw != 0]
+    z = NormalDist().inv_cdf(confidence)
+    if mw.empty:
+        return DeviationResult(0.0, 0.0, confidence, pd.DataFrame(), LEVEL_METHODS[method])
+    value = mw * mkt.price[mw.index]
+    month = mkt.month[mw.index]
+    peak = mkt.is_peak[mw.index]
+    rows = []
+    for mo in sorted(month.unique()):
+        v_pk = float(value[(month == mo) & peak].sum())
+        v_op = float(value[(month == mo) & ~peak].sum())
+        tau = max((_month_mid(mo) - mkt.pricing_date).days, 1) / 365
+        sigma, source = vol_for_month(mo)
+        row = {"month": mo, "horizon (months)": months_ahead(mkt.pricing_date, mo), "τ years": tau,
+               "Peak value €": v_pk, "Offpeak value €": v_op}
+        if sigma is not None:
+            rel = math.sqrt(math.expm1(sigma ** 2 * tau))
+            row.update({"vol %": 100 * sigma, "source": source, "level σ %": 100 * rel,
+                        "σ €": (abs(v_pk) + abs(v_op)) * rel})
+        else:
+            if fallback is None:
+                raise LookupError(f"aucune volatilité de marché pour {mo} ({source}) et pas de proxy de secours")
+            sig = 0.0
+            for b, v in (("Peak", v_pk), ("Offpeak", v_op)):
+                r, _, n_m = fallback.rmse(row["horizon (months)"], b) if v != 0 else (0.0, 0, 0)
+                if r is None:
+                    raise LookupError(f"prime de niveau : ni volatilité de marché ({source}) ni historique suffisant "
+                                      f"à {row['horizon (months)']} mois pour {mo}")
+                sig += abs(v) * r
+            row.update({"vol %": None, "source": f"persistence proxy ({source})", "level σ %": None, "σ €": sig})
+        rows.append(row)
+    by_month = pd.DataFrame(rows).set_index("month")
+    sigma_tot = float(by_month["σ €"].sum())
+    return DeviationResult(z * sigma_tot, sigma_tot, confidence, by_month, LEVEL_METHODS[method])

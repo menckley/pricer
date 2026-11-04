@@ -1,7 +1,6 @@
 from datetime import date
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from pricer.products import as_swap, block, eex, empty_grid, grid_from_hours, shaped, weekly

@@ -19,6 +19,8 @@ risque:                     # coût de risque du résidu de couverture, sur l'hi
   fenetre_mois: 1           # mois historiques comparables : même mois calendaire ± 1
   correlation_mois: 0.0     # corrélation supposée entre les P&L de deux mois livrés (0 = indépendants)
   historique_debut: 2019-01-01
+  facturation: cout_du_capital
+  taux_cout_capital: 0.10
 
 couverture:
   strategie: "auto"   # base+peak fin, base+peak trimestres, base seule fin
@@ -28,6 +30,7 @@ liquidite:
   eur_mwh_par_mw: 0.15    # €/MWh ajoutés par MW au-delà du seuil
 
 deviation:
+  methode: implicite
   methode: persistance
   fenetre_jours: 30
   fenetre_jour_du_mois: 7
@@ -40,3 +43,4 @@ options:
   frais_eur_mwh: 0.0125             # frais EEX par MWh sous-jacent et par jambe
   prime_vol_points: 2          # points de vol ajoutés aux options vendues
   min_variations_historique: 30
+  volatilite_prime : implicite

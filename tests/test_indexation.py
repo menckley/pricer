@@ -1,7 +1,6 @@
 """Contrats physiques indexés sur le spot EPEX : « EPEX spot ± spread »."""
 from datetime import date
 
-import pandas as pd
 import pytest
 
 from pricer import rates

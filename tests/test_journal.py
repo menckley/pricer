@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 
 from pricer import rates
-from pricer.journal import COLUMNS, JOURNAL, GitHubArchive, archive_to_github, pricing_files
+from pricer.journal import COLUMNS, JOURNAL, archive_to_github, pricing_files
 from pricer.products import grid_from_hours, weekly
 from pricer.quote import quote
 from tests.helpers import market, settings

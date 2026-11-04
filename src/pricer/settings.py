@@ -45,6 +45,10 @@ class Settings:
     deviation_min_months: int | None = None        # mois cibles distincts minimum par horizon
     deviation_excluded: tuple | None = None        # périodes exclues [(début, fin), ...]
     full_day_ahead: bool | None = None             # évaluer le scénario full day-ahead
+    deviation_method: str | None = None            # persistance | implicite | historique (prime de niveau)
+    risk_charging: str | None = None               # quantile | cout_du_capital
+    cost_of_capital: float | None = None           # taux annuel du capital immobilisé (cout_du_capital)
+    option_vol_source: str | None = None           # implicite | historique | prudente (prime des options)
     margin_index_base: float | None = None         # marge des contrats indexés spot (marge.yaml → indexation)
     margin_index_per_year: float | None = None
     margin_index_floor: float | None = None
@@ -81,6 +85,9 @@ class Settings:
                 deviation_min_months=dev.get("min_mois_cibles"),
                 deviation_excluded=None if excl is None else tuple((a, b) for a, b in excl),
                 full_day_ahead=dev.get("full_day_ahead"),
+                deviation_method=dev.get("methode"), risk_charging=p["risque"].get("facturation"),
+                cost_of_capital=p["risque"].get("taux_cout_capital"),
+                option_vol_source=(p.get("options") or {}).get("volatilite_prime"),
                 margin_index_base=mi.get("base_eur_mwh"), margin_index_per_year=mi.get("duree_eur_mwh_par_an"),
                 margin_index_floor=mi.get("plancher_eur"),
                 option_fee=po.get("frais_eur_mwh"), option_vol_premium_pts=po.get("prime_vol_points"),
@@ -114,6 +121,14 @@ class Settings:
         for a, b in self.deviation_excluded or ():
             if not (isinstance(a, date) and isinstance(b, date) and a <= b):
                 errors.append("deviation : periodes_exclues = liste de [début, fin] (dates AAAA-MM-JJ)")
+        if self.deviation_method is not None and self.deviation_method not in ("persistance", "implicite", "historique"):
+            errors.append("deviation : methode « persistance », « implicite » ou « historique »")
+        if self.risk_charging is not None and self.risk_charging not in ("quantile", "cout_du_capital"):
+            errors.append("risque : facturation « quantile » ou « cout_du_capital »")
+        if self.cost_of_capital is not None and not 0 <= self.cost_of_capital <= 1:
+            errors.append("risque : taux_cout_capital entre 0 et 1 (ex. 0.10 pour 10 % par an)")
+        if self.option_vol_source is not None and self.option_vol_source not in ("implicite", "historique", "prudente"):
+            errors.append("options : volatilite_prime « implicite », « historique » ou « prudente »")
         if self.deviation_lookback is not None and self.deviation_lookback < 7:
             errors.append("deviation : fenetre_jours ≥ 7")
         if errors:
@@ -122,7 +137,8 @@ class Settings:
     def missing_option(self, manual_margin: bool) -> list[str]:
         out = [f"config/pricer.yaml → options.{k}" for k, v in
                (("frais_eur_mwh", self.option_fee), ("prime_vol_points", self.option_vol_premium_pts),
-                ("min_variations_historique", self.option_min_returns)) if v is None]
+                ("min_variations_historique", self.option_min_returns),
+                ("volatilite_prime", self.option_vol_source)) if v is None]
         if not manual_margin:
             out += [f"config/marge.yaml → options.{k}" for k, v in
                     (("base_eur_mwh", self.margin_option_base), ("plancher_eur", self.margin_option_floor))
@@ -152,9 +168,14 @@ class Settings:
             for key, v in (("fenetre_jours", self.deviation_lookback),
                            ("fenetre_jour_du_mois", self.deviation_day_window),
                            ("min_mois_cibles", self.deviation_min_months),
-                           ("periodes_exclues", self.deviation_excluded), ("full_day_ahead", self.full_day_ahead)):
+                           ("periodes_exclues", self.deviation_excluded), ("full_day_ahead", self.full_day_ahead),
+                           ("methode", self.deviation_method)):
                 if v is None:
                     out.append(f"config/pricer.yaml → deviation.{key}")
+            if self.risk_charging is None:
+                out.append("config/pricer.yaml → risque.facturation")
+            elif self.risk_charging == "cout_du_capital" and self.cost_of_capital is None:
+                out.append("config/pricer.yaml → risque.taux_cout_capital")
         if physical and self.conversion_fee is None:
             out.append("config/pricer.yaml → frais.conversion_fin_phys_eur_mwh")
         if self.eex_fee is None:

@@ -11,14 +11,16 @@ volume en full day-ahead, le mois en cours dans les autres scénarios) est la pr
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import date
 
-import numpy as np
 import pandas as pd
 
 from pricer import rates
-from pricer.deviation import METHOD, DeviationModel, DeviationResult, build_model, deviation_premium
+from pricer.deviation import (LEVEL_METHODS, METHOD, DeviationModel, DeviationResult, build_model,
+                              market_premium)
+from pricer.deviation import deviation_premium as _persistence
 from pricer.hedging import (FULL_DA, LISTED, STRATEGIES, Hedge, full_da_hedge, hedge, hedge_summary, level_open,
                             listed_contract, listed_hedge)
 from pricer.market import Market
@@ -124,8 +126,78 @@ def deviation_model(mkt: Market, s: Settings, spot: pd.Series) -> DeviationModel
     return _MODELS[key]
 
 
+def month_contract(mkt: Market, month: str) -> list[tuple[str, str]]:
+    """Futures Base cotés à la séance qui contiennent le mois livré, du plus fin au plus large : [(nom, type)]."""
+    y, m = int(month[:4]), int(month[5:7])
+    first = date(y, m, 1)
+    st = mkt.settle[(mkt.settle["profile"] == "Base") & mkt.settle["kind"].isin(["month", "quarter", "year"])]
+    st = st[(st["start"] <= first) & (st["end"] >= first)]
+    order = {"month": 0, "quarter": 1, "year": 2}
+    return [(r.name, r.kind) for r in sorted(st.itertuples(), key=lambda r: order[r.kind])]
+
+
+def vol_provider(mkt: Market, s: Settings, method: str):
+    """Fonction mois livré → (σ annuelle ou None, source) pour la prime de niveau, à partir de l'archive :
+    implicite (ATM des settlements d'options EEX de la séance) ou historique (settlements du future)."""
+    from pricer.options import build_smile, historical_vol
+    cache: dict = {}
+    try:
+        data = mkt.options() if method == "implicite" else mkt.futures_history()
+    except LookupError as exc:
+        data, error = None, str(exc)
+    else:
+        error = None
+
+    def vol(name: str, kind: str, start, settlement: float):
+        if name in cache:
+            return cache[name]
+        try:
+            if method == "implicite":
+                sm = build_smile(data, name, kind, start, None, mkt.pricing_date, settlement)
+                out = (sm.vol_at(sm.forward)[0], f"EEX implied ATM {name}")
+            else:
+                h = historical_vol(data, name, mkt.pricing_date, int(s.option_min_returns or 60))
+                out = (h["sigma"], f"historical {name} ({h['returns']} returns)") if h["sigma"] else \
+                    (None, f"historical {name}: {h['reason']}")
+        except (LookupError, ValueError) as exc:
+            out = (None, f"{name}: {exc}")
+        cache[name] = out
+        return out
+
+    def for_month(month: str):
+        if data is None:
+            return None, error
+        reasons = []
+        for name, kind in month_contract(mkt, month):
+            row = mkt.settle[(mkt.settle["profile"] == "Base") & (mkt.settle["name"] == name)].iloc[0]
+            sigma, src = vol(name, kind, row["start"], float(row["settlement"]))
+            if sigma is not None:
+                return sigma, src
+            reasons.append(src)
+        return None, "; ".join(reasons) or "no quoted Base future for this month"
+    return for_month
+
+
+def risk_charge(cost: float, by_month: pd.DataFrame, s: Settings, pricing_date: date) -> tuple[float, str]:
+    """Coût facturé d'un risque dont le quantile vaut `cost` : le quantile entier, ou le coût du capital
+    immobilisé (taux annuel × quantile × durée moyenne de détention, pondérée par les σ mensuels, jusqu'à la
+    fin de chaque mois livré)."""
+    if s.risk_charging != "cout_du_capital" or cost == 0 or by_month is None or not len(by_month):
+        return cost, f"{s.confidence:.0%} quantile"
+    sig = by_month["σ €"].astype(float)
+    tau = []
+    for mo in sig.index:
+        y, m = int(mo[:4]), int(mo[5:7])
+        end = date(y + (m == 12), m % 12 + 1, 1)
+        tau.append(max((end - pricing_date).days, 1) / 365)
+    tau_bar = float((sig * pd.Series(tau, index=sig.index)).sum() / sig.sum()) if sig.sum() > 0 else 0.0
+    return s.cost_of_capital * cost * tau_bar, (f"{s.confidence:.0%} capital × {100 * s.cost_of_capital:g} %/yr × "
+                                                f"{tau_bar:.2f} yr")
+
+
 def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spot: pd.Series | None = None,
-          manual_margin_eur_mwh: float | None = None, manual_reason: str = "") -> Quote:
+          manual_margin_eur_mwh: float | None = None, manual_reason: str = "",
+          level_method: str | None = None) -> Quote:
     """Prix d'un deal. `strategy` : « auto » (défaut du config) ou une clé de STRATEGIES.
     En « auto », le scénario retenu est le moins cher (risque, déviation, frais, conversion, liquidité, marge) ;
     à égalité, celui qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX.
@@ -142,6 +214,9 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     if missing:
         raise LookupError("paramètres à renseigner avant de pricer : " + ", ".join(missing))
     strategy = strategy or s.strategy
+    level_method = level_method or s.deviation_method or "persistance"
+    if level_method not in LEVEL_METHODS:
+        raise ValueError(f"méthode de prime de niveau inconnue {level_method!r} : {', '.join(LEVEL_METHODS)}")
     if strategy != "auto" and strategy not in STRATEGIES and strategy != FULL_DA:
         raise ValueError(f"stratégie inconnue {strategy!r} : auto, {', '.join(STRATEGIES)}, {FULL_DA}")
     if strategy == FULL_DA and not s.full_day_ahead and listed is None:
@@ -177,6 +252,12 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         candidates = {LISTED: (h, hv, rk, DeviationResult(0.0, 0.0, s.confidence, pd.DataFrame()))}
     else:
         dev_model = deviation_model(mkt, s, spot)
+        provider = None if level_method == "persistance" else vol_provider(mkt, s, level_method)
+
+        def deviation_premium(mkt_, mw_, model_, conf_):     # méthode choisie : persistance ou volatilité de marché
+            if provider is None:
+                return _persistence(mkt_, mw_, model_, conf_)
+            return market_premium(mkt_, mw_, provider, conf_, model_, level_method)
         candidates = {}
         for strat in STRATEGIES:
             h = hedge(mkt, p, strat)
@@ -206,6 +287,12 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
         # assiette de la marge de forme : la même pour tous les scénarios
         ref_shape = shape_value(mkt, p)
 
+    charged = {}
+    for name, (h, hv, rk, dv) in list(candidates.items()):
+        rk_cost, rk_rule = risk_charge(rk.cost, rk.by_month, s, mkt.pricing_date)
+        dv_cost, dv_rule = risk_charge(dv.cost, dv.by_month, s, mkt.pricing_date)
+        candidates[name] = (h, hv, dataclasses.replace(rk, cost=rk_cost), dataclasses.replace(dv, cost=dv_cost))
+        charged[name] = (rk_rule, dv_rule)
     evaluated, comp = {}, []
     for name, (h, hv, rk, dv) in candidates.items():
         fees = s.eex_fee * hv["EEX hedged MWh"] + s.epex_fee * _da_mwh(hv)
@@ -255,8 +342,9 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
                 ("Settlement rounding", hv["settlement rounding €"] / sq * V)]
     rows = head + [
             ("= Fair price", fair * V),
-            (f"{sign} Residual risk cost ({rk.confidence:.0%})", direction * rk.cost),
-            (f"{sign} Day-ahead deviation premium ({METHOD})", direction * dv.cost),
+            (f"{sign} Residual risk cost ({charged[chosen][0]})", direction * rk.cost),
+            (f"{sign} Day-ahead level premium ({LEVEL_METHODS[level_method]}; {charged[chosen][1]})",
+             direction * dv.cost),
             (f"{sign} EEX and day-ahead fees", direction * fees),
             (f"{sign} Financial-to-physical conversion", direction * conv),
             (f"{sign} Liquidity premium", direction * liq),
@@ -270,13 +358,13 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
     unhedge = hv["unhedgeable MWh (no quoted month/quarter/year)"]
     if unhedge > 0:
         warnings.append(f"{unhedge:,.0f} MWh sourced in day-ahead without any EEX hedge (current month): "
-                        f"their price-level risk is the deviation premium ({METHOD})")
+                        f"their price-level risk is the day-ahead level premium ({LEVEL_METHODS[level_method]})")
     if STRATEGIES.get(chosen, {}).get("peak_only") and dv.cost > 0:
         warnings.append(f"Peak only: the offpeak MWh delivered are not level-hedged; their price-level risk is the "
-                        f"deviation premium ({METHOD})")
+                        f"day-ahead level premium ({LEVEL_METHODS[level_method]})")
     if chosen == FULL_DA:
-        warnings.append(f"no EEX hedge: the whole volume's price-level risk is the deviation premium ({METHOD}), "
-                        "measured on a naive forecast, larger than the HPFC's real error")
+        warnings.append(f"no EEX hedge: the whole volume's price-level risk is the day-ahead level premium "
+                        f"({LEVEL_METHODS[level_method]})")
     if chosen in STRATEGIES and STRATEGIES[chosen]["levels"][0] != "mois" and _da_mwh(hv) > 1e-6:
         warnings.append("quarterly hedge: the risk of each month versus its quarter is NOT included in the risk cost")
 
@@ -289,7 +377,12 @@ def quote(mkt: Market, p: Product, s: Settings, strategy: str | None = None, spo
                "liquidity threshold MW": s.liquidity_threshold_mw, "liquidity €/MWh per MW": s.liquidity_eur_mwh_per_mw,
                "sourcing paid D+": s.sourcing_days, "client pays D+": s.client_days,
                "day count": s.day_count, **rate_ctx,
-               "deviation method": METHOD if dev_model else None,
+               "level-risk method": LEVEL_METHODS[level_method] if dev_model else None,
+               "risk charging": ("cost of capital" if s.risk_charging == "cout_du_capital" else "full quantile")
+               if dev_model else None,
+               "cost of capital %/yr": 100 * s.cost_of_capital if dev_model and s.risk_charging == "cout_du_capital"
+               else None,
+               "persistence proxy (fallback)": METHOD if dev_model else None,
                "deviation lookback days": s.deviation_lookback if dev_model else None,
                "deviation excluded periods": [f"{a} → {b}" for a, b in (s.deviation_excluded or ())] if dev_model
                else None,

@@ -87,7 +87,7 @@ qui laisse le moins de MWh en day-ahead, puis le moins de contrats EEX. Si un ho
 Les jours restants du mois en cours n'ont pas de produit mois / trimestre / an : ils restent dans le résidu, et leur
 risque de niveau est la prime de déviation à l'horizon 0.
 
-### Volumes de couverture (onglet Hedge de l'application)
+### Volumes de couverture (bloc « Hedge coverage » sous le résultat)
 
 Pour la stratégie retenue, ou n'importe quelle autre stratégie évaluée, et pour toute la période ou un mois :
 volumes livrés, MWh EEX Base et Peak, achats et reventes en day-ahead ; puis deux grilles en semaine type (MW moyens
@@ -108,7 +108,33 @@ Hypothèses : P&L de loi normale pour le quantile ; corrélation uniforme entre 
 niveau d'un mois à l'intérieur d'un trimestre ou d'une année couverts en bloc (il faudrait des prix forward
 historiques ; l'archive des settlements ne remonte qu'au 24/08/2026) : le résultat affiche un avertissement.
 
-### Prime de déviation day-ahead (proxy de persistance, prudent)
+### Prime de niveau day-ahead : choix de la volatilité (`deviation.methode`)
+
+Risque que le day-ahead réalisé s'écarte du niveau forward pour les MWh achetés ou revendus en day-ahead sans
+couverture EEX. Trois mesures, au choix dans l'application (« Level-risk volatility ») ou par défaut dans le config :
+
+| Méthode | σ relatif du niveau d'un mois livré |
+|---|---|
+| `implicite` | volatilité implicite ATM des settlements d'options EEX du contrat qui couvre le mois (mois, sinon trimestre, sinon année) : σ_niveau = √(exp(σ² τ) − 1), τ = temps jusqu'au milieu du mois |
+| `historique` | même formule avec la volatilité historique des settlements du future (`min_variations_historique` variations minimum) |
+| `persistance` | proxy par prévision naïve sur l'historique spot (ci-dessous) |
+
+σ du mois = (|valeur Peak| + |valeur Offpeak|) × σ_niveau, sommé sur les mois. Un mois sans volatilité de marché
+disponible (pas d'option, historique trop court) est mesuré par le proxy de persistance et **signalé** dans le
+tableau (colonne source) : aucune volatilité n'est supposée.
+
+### Facturation du risque (`risque.facturation`)
+
+- `quantile` : z(confiance) × σ facturé en entier ;
+- `cout_du_capital` (défaut) : `taux_cout_capital` × quantile × τ̄, τ̄ = temps moyen jusqu'à la fin de chaque
+  mois pondéré par σ. Le quantile est un capital immobilisé jusqu'à la livraison ; il est rémunéré au coût du
+  capital. **10 %/an** par défaut : ordre de grandeur courant du coût des fonds propres d'un énergéticien
+  (rendement exigé des actionnaires), à ajuster à la politique de risque réelle.
+
+Les deux règles s'appliquent au risque résiduel et à la prime de niveau ; la règle utilisée est écrite dans le
+libellé de chaque ligne du prix.
+
+### Proxy de persistance (prudent)
 
 Risque que le day-ahead réalisé s'écarte du niveau de la HPFC pour les MWh achetés ou revendus en day-ahead sans
 couverture. Faute d'historique forward gratuit (l'API EEX ne garde qu'environ 6 semaines de séances), il est mesuré
@@ -171,7 +197,8 @@ settlements d'options de power-hpfc (`data/eex/options/`).
 | Volatilité | **implicite des settlements EEX de la séance**, recalculée à chaque pricing : option hors de la monnaie inversée à chaque strike, interpolation linéaire entre strikes, prolongement à plat hors de la grille (signalé) |
 | Contrôles | parité call − put, future implicite = settlement du future (au centime), calls décroissants et convexes, settlements inchangés depuis la séance précédente, volume et open interest |
 | Comparaison | même structure à la **volatilité historique** du future (σ² = Σ r² / Σ Δt sur les settlements archivés, ± σ / √(2n)) ; non calculée sous `min_variations_historique` variations. Ce n'est pas une précision : ni l'une ni l'autre n'est « la vérité » |
-| Prime proposée | jambes vendues à σ + `prime_vol_points`, achetées à σ − `prime_vol_points` ; + frais (`frais_eur_mwh` × MWh × jambes) + marge (section `options` de marge.yaml) pour une vente, − pour un achat |
+| Volatilité de la prime | `options.volatilite_prime` (ou « Premium volatility » dans l'application) : `implicite` (EEX), `historique` (refusée si l'archive est trop courte) ou `prudente` (jambe vendue : la plus haute des deux, jambe achetée : la plus basse). Le prix juste affiché reste à la vol implicite EEX |
+| Prime proposée | jambes vendues à σ_base + `prime_vol_points`, achetées à σ_base − `prime_vol_points` ; + frais (`frais_eur_mwh` × MWh × jambes) + marge (section `options` de marge.yaml) pour une vente, − pour un achat |
 | Greeks | delta, gamma, vega (par point de vol), theta (par jour), par MWh, position du client |
 
 Structures : **call** (cap), **put** (floor), **collar** (le client achète le cap et vend le floor). Les settlements

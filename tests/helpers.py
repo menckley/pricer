@@ -85,6 +85,8 @@ def settings(**over) -> Settings:
                 deviation_excluded=((date(2021, 9, 1), date(2023, 6, 30)),), full_day_ahead=True,
                 margin_index_base=0.30, margin_index_per_year=0.05, margin_index_floor=100.0,
                 option_fee=None, option_vol_premium_pts=None, option_min_returns=None,
-                margin_option_base=None, margin_option_floor=None)
+                margin_option_base=None, margin_option_floor=None,
+                deviation_method="persistance", risk_charging="quantile", cost_of_capital=None,
+                option_vol_source="implicite")
     base.update(over)
     return Settings(**base)
