@@ -23,7 +23,7 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       # TODO : épingler ces actions par SHA complet (Dependabot maintiendra ensuite les SHA à jour)
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -42,7 +42,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
