@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 notebook = ["ipywidgets>=8.1"]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.5", "pip-audit>=2.7"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
