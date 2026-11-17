@@ -48,7 +48,8 @@ def test_archive_roundtrip():
     with tempfile.TemporaryDirectory() as tmp:
         path = save_quote(m, q, "Test archive", root=Path(tmp))
         rec, p2 = load_position(path)
-        assert p2.mw.equals(p.mw) and p2.physical
+        # comparaison sur les valeurs : pandas 3 relit l'index parquet avec une autre unité (ms au lieu de s) et un nom
+        assert (p2.mw.index == p.mw.index).all() and (p2.mw.to_numpy() == p.mw.to_numpy()).all() and p2.physical
         assert abs(rec["offer_price"] - q.price) < 1e-9
         with pytest.raises(FileExistsError):
             save_quote(m, q, "Test archive", root=Path(tmp))
