@@ -12,13 +12,18 @@ import pytest
 from pricer import rates
 from pricer.journal import (
     COLUMNS,
+    COLUMNS_V2,
     JOURNAL,
     REPO_ENV,
+    STATUTS,
     _csv_safe,
     _journal_with,
     archive_to_github,
     journal_repo,
+    latest_status,
     pricing_files,
+    status_event,
+    update_status,
 )
 from pricer.products import grid_from_hours, weekly
 from pricer.quote import quote
@@ -51,9 +56,9 @@ class FakeGitHub:
             return self.R(200, {"object": {"sha": self.head}})
         if path.startswith("/git/commits/"):
             return self.R(200, {"tree": {"sha": self.commits[path.rsplit("/", 1)[1]]["tree"]}})
-        if path == f"/contents/{JOURNAL}":
-            f = self.files(params["ref"])
-            return self.R(200, content=f[JOURNAL]) if JOURNAL in f else self.R(404, {})
+        if path in (f"/contents/{JOURNAL}", f"/contents/{STATUTS}"):
+            name, f = path.removeprefix("/contents/"), self.files(params["ref"])
+            return self.R(200, content=f[name]) if name in f else self.R(404, {})
         raise AssertionError(path)
 
     def post(self, url, headers=None, json=None, timeout=None):
@@ -167,3 +172,69 @@ def test_archive_sans_depot_configure_ne_pousse_rien(monkeypatch):
     m, q = _quote()
     with pytest.raises(ValueError):
         archive_to_github(m, q, "Client", None, "tok", http=FakeGitHub())
+
+
+def test_ligne_v1_par_defaut_inchangee():
+    m, q = _quote()
+    _, row = pricing_files(m, q, "Client")
+    assert set(row) == set(COLUMNS)
+    assert _journal_with(None, row).decode().splitlines()[0].split(",") == COLUMNS
+
+
+def test_ligne_v2_et_migration_du_journal_v1():
+    m, q = _quote()
+    _, old = pricing_files(m, q, "Ancien")
+    v1 = _journal_with(None, old).decode()
+    _, new = pricing_files(m, q, "Nouveau", client="ACME", is_test=False)
+    assert new["status"] == "envoyé" and new["is_test"] == "false" and new["client"] == "ACME"
+    rows = list(csv.DictReader(io.StringIO(_journal_with(v1, new).decode())))
+    assert list(rows[0]) == COLUMNS_V2 and len(rows) == 2
+    assert rows[0]["label"] == "Ancien" and rows[0]["status"] == "" and rows[0]["client"] == ""
+    assert rows[1]["label"] == "Nouveau" and rows[1]["status"] == "envoyé"
+    # journal v2 : une ligne v1 y est complétée par des cellules vides
+    v2 = _journal_with(None, new).decode()
+    rows = list(csv.DictReader(io.StringIO(_journal_with(v2, old).decode())))
+    assert len(rows) == 2 and rows[1]["label"] == "Ancien" and rows[1]["is_test"] == ""
+
+
+def test_entete_inconnue_refusee():
+    m, q = _quote()
+    _, row = pricing_files(m, q, "X", is_test=True)
+    with pytest.raises(ValueError):
+        _journal_with("a,b\n1,2\n", row)
+    with pytest.raises(ValueError):
+        _journal_with(",".join(COLUMNS_V2[:-1]) + "\n", row)
+
+
+def test_status_event_validation():
+    e = status_event("id1", "gagné", 101.5)
+    assert e["status"] == "gagné" and e["won_price"] == 101.5
+    assert status_event("id1", "perdu")["won_price"] == ""
+    for args in (("id1", "inconnu"), ("id1", "perdu", 90.0), ("id1", "gagné", -1.0), ("id1", "gagné", float("nan"))):
+        with pytest.raises(ValueError):
+            status_event(*args)
+
+
+def test_update_status_commit_complementaire_append_only():
+    m, q = _quote()
+    gh = FakeGitHub()
+    a = archive_to_github(m, q, "Client", "o/r", "tok", http=gh, client="ACME", is_test=False)
+    journal = gh.files()[JOURNAL]
+    c1 = update_status(a.id, "perdu", "o/r", "tok", http=gh)
+    c2 = update_status(a.id, "gagné", "o/r", "tok", won_price=99.0, note="=x", http=gh)
+    f = gh.files()
+    assert f[JOURNAL] == journal and gh.commits[c2]["parents"] == [c1]    # journal.csv intact
+    events = list(csv.DictReader(io.StringIO(f[STATUTS].decode())))
+    assert [e["status"] for e in events] == ["perdu", "gagné"] and events[1]["note"] == "'=x"
+    assert latest_status(f[STATUTS].decode())[a.id]["status"] == "gagné"
+    assert latest_status(None) == {}
+
+
+def test_update_status_id_inconnu_ne_pousse_rien():
+    m, q = _quote()
+    gh = FakeGitHub()
+    archive_to_github(m, q, "Client", "o/r", "tok", http=gh)
+    head = gh.head
+    with pytest.raises(ValueError):
+        update_status("inconnu", "perdu", "o/r", "tok", http=gh)
+    assert gh.head == head
