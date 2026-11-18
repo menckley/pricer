@@ -16,6 +16,7 @@ import base64
 import csv
 import io
 import json
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -36,6 +37,11 @@ BACKOFF_S = 0.5                         # attente avant la 2e tentative, doublé
 COLUMNS = ["id", "priced_at_utc", "label", "product", "side", "settlement", "delivery_start", "delivery_end",
            "volume_mwh", "fair_price", "offer_price", "margin_eur", "margin_rule", "risk_cost_eur", "hedging",
            "pricing_date", "pricer_version", "folder"]          # « folder » : chemin du fichier JSON du pricing
+# Schéma v2 (optionnel) : client, drapeau d'essai, statut commercial initial ; le statut ultérieur est dans STATUTS.
+COLUMNS_V2 = [*COLUMNS, "client", "is_test", "status", "won_price"]
+STATUTS = "pricings/statuts.csv"        # événements de statut, append-only : le dernier événement d'un id fait foi
+STATUS_COLUMNS = ["event_at_utc", "id", "status", "won_price", "note"]
+STATUS_VALUES = ("envoyé", "gagné", "perdu", "expiré")
 
 
 @dataclass(frozen=True)
@@ -50,8 +56,11 @@ def _records(df) -> list:
     return [] if df is None or df.empty else json.loads(df.reset_index().to_json(orient="records", date_format="iso"))
 
 
-def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None) -> tuple[dict[str, bytes], dict]:
-    """Fichier léger du pricing (chemin dans le dépôt → contenu) et ligne du journal."""
+def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None, *, client: str | None = None,
+                  is_test: bool | None = None) -> tuple[dict[str, bytes], dict]:
+    """Fichier léger du pricing (chemin dans le dépôt → contenu) et ligne du journal.
+
+    Sans `client` ni `is_test`, la ligne reste au schéma v1 (COLUMNS) ; sinon schéma v2 avec statut « envoyé »."""
     now = now or datetime.now(UTC)
     pid = f"{now:%Y%m%dT%H%M%SZ}_{slug(label)[:60]}"
     path = f"pricings/{now:%Y/%m}/{pid}.json"
@@ -91,6 +100,9 @@ def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None
            "margin_eur": round(q.margin.eur, 2), "margin_rule": q.margin.rule, "risk_cost_eur": round(q.risk.cost, 2),
            "hedging": q.context["strategy selected"], "pricing_date": str(mkt.pricing_date),
            "pricer_version": __version__, "folder": path}
+    if client is not None or is_test is not None:
+        row.update(client=client or "", is_test="" if is_test is None else str(bool(is_test)).lower(),
+                   status="envoyé", won_price="")
     return {path: data}, row
 
 
@@ -103,18 +115,56 @@ def _csv_safe(value):
 
 
 def _journal_with(existing: str | None, row: dict) -> bytes:
+    """Ajoute une ligne au journal (v1 ou v2). Une ligne v2 sur un journal v1 le migre en v2 (cellules vides)."""
+    header = None if not existing else (existing.splitlines()[0].split(",") if existing.strip() else [])
+    if header is not None and header not in (COLUMNS, COLUMNS_V2):
+        raise ValueError(f"{JOURNAL} existant avec des colonnes inattendues : {header}")
+    target = COLUMNS_V2 if "status" in row or header == COLUMNS_V2 else COLUMNS
+    extra = set(row) - set(target)
+    if extra:
+        raise ValueError(f"colonnes inconnues pour le journal : {sorted(extra)}")
     out = io.StringIO()
-    if existing:
-        header = existing.splitlines()[0].split(",") if existing.strip() else []
-        if header != COLUMNS:
-            raise ValueError(f"{JOURNAL} existant avec des colonnes inattendues : {header}")
-        out.write(existing if existing.endswith("\n") else existing + "\n")
-        w = csv.DictWriter(out, fieldnames=COLUMNS, lineterminator="\n")
-    else:
-        w = csv.DictWriter(out, fieldnames=COLUMNS, lineterminator="\n")
+    w = csv.DictWriter(out, fieldnames=target, lineterminator="\n")
+    if header is None:
         w.writeheader()
+    elif header == target:
+        out.write(existing if existing.endswith("\n") else existing + "\n")
+    else:                                                  # migration v1 → v2 : anciennes lignes conservées
+        w.writeheader()
+        w.writerows(csv.DictReader(io.StringIO(existing)))
     w.writerow({k: _csv_safe(v) for k, v in row.items()})
     return out.getvalue().encode("utf-8")
+
+
+def _statuts_with(existing: str | None, event: dict) -> bytes:
+    out = io.StringIO()
+    w = csv.DictWriter(out, fieldnames=STATUS_COLUMNS, lineterminator="\n")
+    if existing:
+        if existing.splitlines()[0].split(",") != STATUS_COLUMNS:
+            raise ValueError(f"{STATUTS} existant avec des colonnes inattendues")
+        out.write(existing if existing.endswith("\n") else existing + "\n")
+    else:
+        w.writeheader()
+    w.writerow({k: _csv_safe(v) for k, v in event.items()})
+    return out.getvalue().encode("utf-8")
+
+
+def status_event(pricing_id: str, status: str, won_price: float | None = None, note: str = "",
+                 now: datetime | None = None) -> dict:
+    """Événement de statut validé ; `won_price` (€/MWh) réservé au statut « gagné »."""
+    if status not in STATUS_VALUES:
+        raise ValueError(f"statut inconnu : {status!r} (attendu : {', '.join(STATUS_VALUES)})")
+    if won_price is not None and status != "gagné":
+        raise ValueError("prix gagné réservé au statut « gagné »")
+    if won_price is not None and not (math.isfinite(won_price) and won_price > 0):
+        raise ValueError("prix gagné invalide (nombre fini > 0 attendu)")
+    return {"event_at_utc": (now or datetime.now(UTC)).isoformat(timespec="seconds"), "id": pricing_id,
+            "status": status, "won_price": "" if won_price is None else won_price, "note": note}
+
+
+def latest_status(statuts: str | None) -> dict[str, dict]:
+    """Dernier événement de chaque pricing (id → ligne) à partir du contenu de statuts.csv."""
+    return {r["id"]: r for r in csv.DictReader(io.StringIO(statuts or ""))}
 
 
 class GitHubArchive:
@@ -130,16 +180,34 @@ class GitHubArchive:
             raise RuntimeError(f"GitHub {method.upper()} {path} : HTTP {r.status_code} — {r.text[:200]}")
         return r
 
-    def _journal(self, ref: str) -> str | None:
-        r = self.http.get(f"{API}/repos/{self.repo}/contents/{JOURNAL}", params={"ref": ref}, timeout=30,
+    def _file(self, path: str, ref: str) -> str | None:
+        r = self.http.get(f"{API}/repos/{self.repo}/contents/{path}", params={"ref": ref}, timeout=30,
                           headers={**self.headers, "Accept": "application/vnd.github.raw"})
         if r.status_code == 404:
             return None
         if r.status_code != 200:
-            raise RuntimeError(f"GitHub GET /contents/{JOURNAL} : HTTP {r.status_code} — {r.text[:200]}")
+            raise RuntimeError(f"GitHub GET /contents/{path} : HTTP {r.status_code} — {r.text[:200]}")
         return r.content.decode("utf-8")
 
+    def _journal(self, ref: str) -> str | None:
+        return self._file(JOURNAL, ref)
+
     def push(self, files: dict[str, bytes], row: dict, message: str) -> Archived:
+        commit = self._commit(lambda head: {**files, JOURNAL: _journal_with(self._journal(head), row)}, message)
+        return Archived(row["id"], row["folder"], commit,
+                        f"https://github.com/{self.repo}/blob/{self.branch}/{row['folder']}")
+
+    def update_status(self, event: dict, message: str) -> str:
+        """Ajoute un événement de statut (commit complémentaire) ; l'id doit exister dans le journal."""
+        def build(head):
+            ids = {r["id"] for r in csv.DictReader(io.StringIO(self._journal(head) or ""))}
+            if event["id"] not in ids:
+                raise ValueError(f"pricing inconnu dans le journal : {event['id']}")
+            return {STATUTS: _statuts_with(self._file(STATUTS, head), event)}
+        return self._commit(build, message)
+
+    def _commit(self, build, message: str) -> str:
+        """Un commit contenant `build(head)` (chemin → contenu), refait si la branche a bougé entre-temps."""
         for attempt in range(ATTEMPTS):
             if attempt:
                 time.sleep(BACKOFF_S * 2 ** (attempt - 1))
@@ -149,7 +217,7 @@ class GitHubArchive:
                                    "README (Initialize this repository) pour qu'il ait un premier commit")
             head = r.json()["object"]["sha"]
             base_tree = self._call("get", f"/git/commits/{head}").json()["tree"]["sha"]
-            content = {**files, JOURNAL: _journal_with(self._journal(head), row)}
+            content = build(head)
             tree = []
             for path, data in content.items():
                 blob = self._call("post", "/git/blobs",
@@ -161,8 +229,7 @@ class GitHubArchive:
             r = self._call("patch", f"/git/refs/heads/{self.branch}", ok=(200, 422),
                            json={"sha": commit, "force": False})
             if r.status_code == 200:
-                return Archived(row["id"], row["folder"], commit,
-                                f"https://github.com/{self.repo}/blob/{self.branch}/{row['folder']}")
+                return commit
         raise RuntimeError(f"la branche a changé {ATTEMPTS} fois pendant l'archivage : relancer le pricing")
 
 
@@ -174,8 +241,16 @@ def journal_repo(repo: str | None = None) -> str:
     return repo
 
 
-def archive_to_github(mkt: Market, q: Quote, label: str, repo: str | None, token: str, http=None) -> Archived:
+def archive_to_github(mkt: Market, q: Quote, label: str, repo: str | None, token: str, http=None, *,
+                      client: str | None = None, is_test: bool | None = None) -> Archived:
     repo = journal_repo(repo)
-    files, row = pricing_files(mkt, q, label)
+    files, row = pricing_files(mkt, q, label, client=client, is_test=is_test)
     msg = f"Pricing {row['id']} : {q.product.name} — {q.price:,.2f} €/MWh"
     return GitHubArchive(repo, token, http=http).push(files, row, msg)
+
+
+def update_status(pricing_id: str, status: str, repo: str | None, token: str, won_price: float | None = None,
+                  note: str = "", http=None) -> str:
+    """Enregistre le statut commercial d'un pricing du journal (gagné/perdu/expiré) ; renvoie le SHA du commit."""
+    event = status_event(pricing_id, status, won_price, note)
+    return GitHubArchive(journal_repo(repo), token, http=http).update_status(event, f"Statut {pricing_id} : {status}")
