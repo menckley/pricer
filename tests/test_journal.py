@@ -3,6 +3,8 @@ import json
 import re
 from datetime import date
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from pricer import rates
@@ -97,6 +99,7 @@ def test_each_pricing_is_one_commit_with_journal_line():
     assert a1.folder in f and a2.folder.endswith(".json") and len(f[a2.folder]) < 200_000
     rec = json.loads(f[a1.folder])
     assert rec["product"]["spec"]["type"] == "weekly" and rec["offer_price"] == pytest.approx(q.price)
+    assert rec["environment"]["numpy"] == np.__version__ and rec["environment"]["pandas"] == pd.__version__
     assert "README.md" in f                                     # rien d'existant n'est supprimé
     assert gh.commits[a2.commit]["parents"] == [a1.commit]
 

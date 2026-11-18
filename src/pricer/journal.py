@@ -23,7 +23,7 @@ import requests
 
 from pricer import __version__
 from pricer.archive import _clean, slug
-from pricer.market import Market
+from pricer.market import Market, environment_info
 from pricer.quote import Quote
 
 API = "https://api.github.com"
@@ -76,7 +76,7 @@ def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None
         "warnings": q.warnings, "context": q.context,
         "curve": {"pricing_date": str(mkt.pricing_date), "method": mkt.meta.get("method"),
                   "code_version": mkt.meta.get("code_version")},
-        "pricer_version": __version__,
+        "pricer_version": __version__, "environment": environment_info(),
     }
     data = json.dumps(_clean(record), indent=1, ensure_ascii=False, default=str).encode("utf-8")
     row = {"id": pid, "priced_at_utc": now.isoformat(timespec="seconds"), "label": label,

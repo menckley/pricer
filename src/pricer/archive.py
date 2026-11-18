@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pricer.market import Market, commit_info
+from pricer.market import Market, commit_info, environment_info
 from pricer.products import Product
 from pricer.quote import Quote
 
@@ -82,6 +82,7 @@ def save_quote(mkt: Market, q: Quote, label: str, root: Path = PRICINGS, overwri
         "power_hpfc_data": commit_info(mkt.hpfc_repo / "data")
         if mkt.hpfc_repo and (mkt.hpfc_repo / "data" / ".git").exists() else None,
         "pricer": commit_info(REPO) if (REPO / ".git").exists() else None,
+        "environment": environment_info(),
     }
     (out / "pricing.json").write_text(json.dumps(_clean(record), indent=2, ensure_ascii=False, default=str),
                                       encoding="utf-8")
