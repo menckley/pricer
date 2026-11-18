@@ -45,3 +45,6 @@ extend-exclude = ["notebooks"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["B905", "E731"]   # zip() sans strict= : comportement inchangé ; lambdas nommées dans les tests
+
+[tool.bandit]
+exclude_dirs = ["tests"]   # assert pytest et SHA1 de blob Git dans les tests : faux positifs

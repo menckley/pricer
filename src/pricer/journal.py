@@ -7,7 +7,8 @@
 
 Le détail complet (position heure par heure, échantillons de risque…) reste téléchargeable dans l'application.
 Écriture par l'API Git Data de GitHub (blobs → arbre → commit → mise à jour de la branche). Si un autre
-pricing a été archivé entre-temps, la mise à jour est refaite une fois ; rien n'est jamais écrasé ni supprimé.
+pricing a été archivé entre-temps, la mise à jour est refaite (5 tentatives, attente
+exponentielle) ; rien n'est jamais écrasé ni supprimé.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ import csv
 import io
 import json
 import os
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -29,6 +31,8 @@ from pricer.quote import Quote
 API = "https://api.github.com"
 JOURNAL = "pricings/journal.csv"
 REPO_ENV = "PRICER_JOURNAL_REPO"        # dépôt PRIVÉ « propriétaire/nom » du journal (jamais le dépôt de code)
+ATTEMPTS = 5                            # tentatives de mise à jour de la branche (conflit = 422)
+BACKOFF_S = 0.5                         # attente avant la 2e tentative, doublée à chaque fois
 COLUMNS = ["id", "priced_at_utc", "label", "product", "side", "settlement", "delivery_start", "delivery_end",
            "volume_mwh", "fair_price", "offer_price", "margin_eur", "margin_rule", "risk_cost_eur", "hedging",
            "pricing_date", "pricer_version", "folder"]          # « folder » : chemin du fichier JSON du pricing
@@ -90,6 +94,14 @@ def pricing_files(mkt: Market, q: Quote, label: str, now: datetime | None = None
     return {path: data}, row
 
 
+def _csv_safe(value):
+    """Neutralise l'injection de formule (tableur) et les retours ligne dans une cellule texte du CSV."""
+    if not isinstance(value, str):
+        return value
+    value = " ".join(value.split())
+    return "'" + value if value[:1] in ("=", "+", "-", "@") else value
+
+
 def _journal_with(existing: str | None, row: dict) -> bytes:
     out = io.StringIO()
     if existing:
@@ -101,7 +113,7 @@ def _journal_with(existing: str | None, row: dict) -> bytes:
     else:
         w = csv.DictWriter(out, fieldnames=COLUMNS, lineterminator="\n")
         w.writeheader()
-    w.writerow(row)
+    w.writerow({k: _csv_safe(v) for k, v in row.items()})
     return out.getvalue().encode("utf-8")
 
 
@@ -128,7 +140,9 @@ class GitHubArchive:
         return r.content.decode("utf-8")
 
     def push(self, files: dict[str, bytes], row: dict, message: str) -> Archived:
-        for _ in range(2):
+        for attempt in range(ATTEMPTS):
+            if attempt:
+                time.sleep(BACKOFF_S * 2 ** (attempt - 1))
             r = self._call("get", f"/git/ref/heads/{self.branch}", ok=(200, 404, 409))
             if r.status_code != 200:
                 raise RuntimeError(f"branche {self.branch} introuvable dans {self.repo} : créer le dépôt avec un "
@@ -149,7 +163,7 @@ class GitHubArchive:
             if r.status_code == 200:
                 return Archived(row["id"], row["folder"], commit,
                                 f"https://github.com/{self.repo}/blob/{self.branch}/{row['folder']}")
-        raise RuntimeError("la branche a changé deux fois pendant l'archivage : relancer le pricing")
+        raise RuntimeError(f"la branche a changé {ATTEMPTS} fois pendant l'archivage : relancer le pricing")
 
 
 def journal_repo(repo: str | None = None) -> str:

@@ -1,4 +1,6 @@
+import csv
 import hashlib
+import io
 import json
 import re
 from datetime import date
@@ -8,7 +10,16 @@ import pandas as pd
 import pytest
 
 from pricer import rates
-from pricer.journal import COLUMNS, JOURNAL, REPO_ENV, archive_to_github, journal_repo, pricing_files
+from pricer.journal import (
+    COLUMNS,
+    JOURNAL,
+    REPO_ENV,
+    _csv_safe,
+    _journal_with,
+    archive_to_github,
+    journal_repo,
+    pricing_files,
+)
 from pricer.products import grid_from_hours, weekly
 from pricer.quote import quote
 from tests.helpers import market, settings
@@ -50,7 +61,7 @@ class FakeGitHub:
         path = re.sub(r"^.*/repos/[^/]+/[^/]+", "", url)
         if path == "/git/blobs":
             data = base64.b64decode(json["content"])
-            sha = hashlib.sha1(data).hexdigest()
+            sha = hashlib.sha1(data, usedforsecurity=False).hexdigest()
             self.blobs[sha] = data
             return self.R(201, {"sha": sha})
         if path == "/git/trees":
@@ -104,13 +115,33 @@ def test_each_pricing_is_one_commit_with_journal_line():
     assert gh.commits[a2.commit]["parents"] == [a1.commit]
 
 
-def test_retry_when_branch_moved():
+def test_retry_when_branch_moved(monkeypatch):
+    monkeypatch.setattr("pricer.journal.time.sleep", lambda s: None)
     m, q = _quote()
     gh = FakeGitHub(race=1)
     a = archive_to_github(m, q, "Client", "o/r", "tok", http=gh)
     assert gh.head == a.commit and gh.commits[a.commit]["parents"] == ["cx"]
     with pytest.raises(RuntimeError):
-        archive_to_github(m, q, "Client", "o/r", "tok", http=FakeGitHub(race=2))
+        archive_to_github(m, q, "Client", "o/r", "tok", http=FakeGitHub(race=5))
+
+
+def test_conflits_repetes_puis_succes_avec_attente_exponentielle(monkeypatch):
+    waits = []
+    monkeypatch.setattr("pricer.journal.time.sleep", waits.append)
+    m, q = _quote()
+    gh = FakeGitHub(race=4)
+    a = archive_to_github(m, q, "Client", "o/r", "tok", http=gh)
+    assert gh.head == a.commit and waits == [0.5, 1.0, 2.0, 4.0]
+
+
+def test_libelle_neutralise_dans_le_csv():
+    m, q = _quote()
+    _, row = pricing_files(m, q, "=HYPERLINK(\"x\")\nligne2")
+    data = _journal_with(None, row).decode()
+    rows = list(csv.reader(io.StringIO(data)))
+    assert len(rows) == 2 and rows[1][2] == "'=HYPERLINK(\"x\") ligne2"
+    assert row["label"].startswith("=")                                  # ligne d'origine non modifiée
+    assert _csv_safe("Client A") == "Client A" and _csv_safe("@a") == "'@a"
 
 
 def test_journal_row_content():
