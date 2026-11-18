@@ -6,16 +6,25 @@ build-backend = "setuptools.build_meta"
 name = "pricer"
 version = "0.10.0"
 description = "Pricer de produits structurés électricité France, sur la HPFC et les settlements de power-hpfc"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+]
 authors = [{name = "Clément Corve"}]
-# power-hpfc doit être installé séparément depuis son clone local (pip install -e power-hpfc)
+# power-hpfc (module « hpfc ») n'est volontairement pas déclaré ici : son archive de données est un clone privé piloté
+# par git (voir market.py). À installer séparément depuis son clone local (pip install -e power-hpfc) ; voir le README.
+# Bornes hautes = prochaine version majeure : les résultats de pricing dépendent de numpy/pandas.
 dependencies = [
-    "numpy>=1.26",
-    "pandas>=3.1.1",
-    "pyarrow>=15",
-    "requests>=2.34.2",
-    "pyyaml>=6.0.3",
+    "numpy>=1.26,<3",
+    "pandas>=3.1.1,<4",
+    "pyarrow>=15,<27",
+    "requests>=2.34.2,<3",
+    "pyyaml>=6.0.3,<7",
 ]
 
 [project.optional-dependencies]

@@ -5,6 +5,7 @@ Rien n'est approché : une donnée absente ou incohérente arrête le calcul.
 """
 from __future__ import annotations
 
+import platform
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -30,6 +31,12 @@ def commit_info(repo: Path) -> dict:
     r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", "HEAD"],
                        capture_output=True, text=True)
     return {"commit": r.stdout.strip() or None, "modifications_locales": bool(git(repo, "status", "--porcelain"))}
+
+
+def environment_info() -> dict:
+    """Versions de Python et des bibliothèques numériques, à consigner avec chaque pricing : elles peuvent changer
+    les résultats d'une installation à l'autre."""
+    return {"python": platform.python_version(), "numpy": np.__version__, "pandas": pd.__version__}
 
 
 def _pull(repo: Path) -> int:
