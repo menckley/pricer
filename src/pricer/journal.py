@@ -1,4 +1,4 @@
-"""Journal des pricings sur GitHub, dans le dépôt du pricer : un commit par pricing, fichiers légers.
+"""Journal des pricings sur GitHub, dans un dépôt privé dédié (PRICER_JOURNAL_REPO) : un commit par pricing.
 
     pricings/journal.csv                     une ligne par pricing (append-only)
     pricings/AAAA/MM/<horodatage>_<libellé>.json   l'essentiel : définition compacte du produit (pas la série
@@ -15,6 +15,7 @@ import base64
 import csv
 import io
 import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -27,6 +28,7 @@ from pricer.quote import Quote
 
 API = "https://api.github.com"
 JOURNAL = "pricings/journal.csv"
+REPO_ENV = "PRICER_JOURNAL_REPO"        # dépôt PRIVÉ « propriétaire/nom » du journal (jamais le dépôt de code)
 COLUMNS = ["id", "priced_at_utc", "label", "product", "side", "settlement", "delivery_start", "delivery_end",
            "volume_mwh", "fair_price", "offer_price", "margin_eur", "margin_rule", "risk_cost_eur", "hedging",
            "pricing_date", "pricer_version", "folder"]          # « folder » : chemin du fichier JSON du pricing
@@ -150,7 +152,16 @@ class GitHubArchive:
         raise RuntimeError("la branche a changé deux fois pendant l'archivage : relancer le pricing")
 
 
-def archive_to_github(mkt: Market, q: Quote, label: str, repo: str, token: str, http=None) -> Archived:
+def journal_repo(repo: str | None = None) -> str:
+    """Dépôt cible du journal : argument, sinon variable d'environnement PRICER_JOURNAL_REPO ; aucun défaut."""
+    repo = (repo or os.environ.get(REPO_ENV) or "").strip()
+    if repo.count("/") != 1 or not all(repo.split("/")):
+        raise ValueError(f"dépôt du journal non configuré : renseigner {REPO_ENV} (« propriétaire/nom », dépôt privé)")
+    return repo
+
+
+def archive_to_github(mkt: Market, q: Quote, label: str, repo: str | None, token: str, http=None) -> Archived:
+    repo = journal_repo(repo)
     files, row = pricing_files(mkt, q, label)
     msg = f"Pricing {row['id']} : {q.product.name} — {q.price:,.2f} €/MWh"
     return GitHubArchive(repo, token, http=http).push(files, row, msg)
