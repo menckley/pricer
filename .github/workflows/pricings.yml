@@ -3,6 +3,7 @@ name: Pricings archivés
 # Vérifie hors ligne le schéma des pricings archivés et leur cohérence avec journal.csv.
 # ci.yml ignore pricings/** au push : ce workflow couvre ces modifications.
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "pricings/**"
