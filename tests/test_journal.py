@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 
 from pricer import rates
-from pricer.journal import COLUMNS, JOURNAL, archive_to_github, pricing_files
+from pricer.journal import COLUMNS, JOURNAL, REPO_ENV, archive_to_github, journal_repo, pricing_files
 from pricer.products import grid_from_hours, weekly
 from pricer.quote import quote
 from tests.helpers import market, settings
@@ -116,3 +116,20 @@ def test_journal_row_content():
     assert set(row) == set(COLUMNS) and row["side"] == "sell" and row["offer_price"] > row["fair_price"]
     assert row["delivery_start"] == "2027-01-01" and row["delivery_end"] == "2027-03-31"
     assert list(files) == [row["folder"]] and row["folder"].startswith("pricings/")
+
+
+def test_journal_repo_configurable_sans_defaut(monkeypatch):
+    monkeypatch.delenv(REPO_ENV, raising=False)
+    with pytest.raises(ValueError):
+        journal_repo(None)
+    with pytest.raises(ValueError):
+        journal_repo("pasunrepo")
+    monkeypatch.setenv(REPO_ENV, "o/prive")
+    assert journal_repo(None) == "o/prive" and journal_repo("a/b") == "a/b"
+
+
+def test_archive_sans_depot_configure_ne_pousse_rien(monkeypatch):
+    monkeypatch.delenv(REPO_ENV, raising=False)
+    m, q = _quote()
+    with pytest.raises(ValueError):
+        archive_to_github(m, q, "Client", None, "tok", http=FakeGitHub())

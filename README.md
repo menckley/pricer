@@ -237,22 +237,24 @@ volatilité réalisée jusqu'à l'échéance (à ajouter dans power-hpfc quand d
 Le pricer est utilisé par l'application Streamlit du dépôt `power-hpfc` (page d'accueil **Pricer**, page
 **Pricing history**), qui lit les données de marché du dépôt privé `power-hpfc-data`. L'application télécharge ce
 dépôt avec le secret `PRICER_TOKEN` (jeton *fine-grained* limité à
-`menckley/pricer`, **Contents : Read and write** : lecture du code, écriture du journal) et recharge le code moins de
+`menckley/pricer` en lecture et au dépôt privé du journal en **Contents : Read and write**) et recharge le code moins de
 5 minutes après un push qui modifie `src/` ou `config/`. Un 403 « Resource not accessible by personal access token »
 à l'archivage = jeton en lecture seule.
 
 ## Archivage et journal des pricings
 
 - **Journal sur GitHub (automatique, dans l'application Streamlit)** : chaque clic sur **Price** ajoute, en un seul
-  commit dans ce dépôt, une ligne à `pricings/journal.csv` et un fichier léger
+  commit dans un **dépôt privé dédié** (variable `PRICER_JOURNAL_REPO`, `propriétaire/nom`, sans valeur par défaut :
+  jamais ce dépôt public, le journal contient marges et libellés clients), une ligne à `pricings/journal.csv` et un fichier léger
   `pricings/AAAA/MM/<horodatage>_<libellé>.json` (≈ 10 Ko) : définition compacte du produit (grille, bloc,
   contrat ; pas la série horaire), construction du prix, couverture, stratégies comparées, risque par mois, marge,
   avertissements et paramètres utilisés. Rien n'est jamais écrasé. Jeton : secret `PRICER_TOKEN` de l'application,
-  *fine-grained*, limité à ce dépôt, **Contents : Read and write**. Sans jeton, le journal est désactivé.
+  *fine-grained*, limité au dépôt privé du journal, **Contents : Read and write**. Sans jeton, le journal est désactivé.
 - **Archive détaillée** : bouton « Download pricing (zip) » de l'application (position heure par heure,
   échantillons de risque, financement…) ; en local, aussi `exports/pricings/` (non versionné).
 
-L'application écrit dans `pricings/` du dépôt : faire un `git pull` avant de pousser des modifications du code.
+`pricings/` est ignoré par git dans ce dépôt public. Les fichiers déjà versionnés restent à retirer de l'historique
+(`git filter-repo`, puis mise à jour forcée) et sont à considérer comme déjà divulgués.
 
 ## Organisation du code
 
