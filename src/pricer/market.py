@@ -18,7 +18,7 @@ import pandas as pd
 
 
 def git(repo: Path, *args: str) -> str:
-    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=False)
     if r.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} a échoué dans {repo} :\n{r.stderr.strip()}")
     return r.stdout.strip()
@@ -29,7 +29,7 @@ def commit_info(repo: Path) -> dict:
     if not (Path(repo) / ".git").exists():
         return {"commit": None, "modifications_locales": None, "erreur": f"{repo} n'est pas un dépôt git"}
     r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", "HEAD"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, check=False)
     return {"commit": r.stdout.strip() or None, "modifications_locales": bool(git(repo, "status", "--porcelain"))}
 
 
